@@ -107,6 +107,25 @@
   .insight{padding:10px 12px;border-radius:10px;background:var(--soft);margin-top:8px;font-size:14px}
   .result{padding:10px;border:1px solid var(--line);border-radius:10px;margin-top:8px;cursor:pointer}
   .result b{display:block}
+  .step{display:flex;gap:12px;align-items:center;padding:11px 2px;border-bottom:1px solid var(--line);cursor:pointer;user-select:none}
+  .step:last-child{border-bottom:0}
+  .step .box{width:26px;height:26px;border-radius:8px;border:2px solid var(--line);display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff;flex:none;font-size:15px}
+  .step.done .box{background:var(--good);border-color:var(--good)}
+  .step.done .txt{color:var(--muted);text-decoration:line-through}
+  .step.na .box{background:var(--line);color:var(--muted)}
+  .step.na .txt{color:var(--muted)}
+  .big3{display:flex;gap:10px;align-items:center;margin-top:8px}
+  .big3 .box{width:26px;height:26px;border-radius:8px;border:2px solid var(--line);display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff;flex:none;cursor:pointer}
+  .big3.done .box{background:var(--good);border-color:var(--good)}
+  .pill{display:flex;gap:6px;flex-wrap:wrap}
+  .pill button{border:1px solid var(--line);background:var(--bg);color:var(--ink);font:inherit;font-size:14px;padding:8px 12px;border-radius:20px;cursor:pointer;min-width:40px}
+  .pill button.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+  .pill button.on.bad{background:var(--warn);border-color:var(--warn)}
+  .sysrow{display:flex;gap:8px;align-items:center;margin-top:6px}
+  .sysrow input{flex:1}
+  .sysrow select{width:110px;flex:none}
+  .x2{background:none;border:0;color:var(--muted);font-size:20px;cursor:pointer;padding:4px 8px;flex:none}
+  .done-banner{background:color-mix(in srgb,var(--good) 14%,transparent);color:var(--good);font-weight:600;padding:10px 12px;border-radius:10px;text-align:center;margin-top:10px}
   .install{background:var(--soft);border-radius:12px;padding:12px;font-size:14px;margin:10px 0}
 </style>
 </head>
@@ -220,6 +239,17 @@
     </div>
   </section>
 
+  <!-- SYSTEMS -->
+  <section id="tab-systems" class="hide">
+    <div class="seg" id="sysSeg" style="margin:10px 0 4px">
+      <button data-v="morning">Morning</button>
+      <button data-v="midday">Midday</button>
+      <button data-v="evening">Evening</button>
+      <button data-v="manage">Systems</button>
+    </div>
+    <div id="sysView"></div>
+  </section>
+
   <!-- WEEK -->
   <section id="tab-week" class="hide">
     <div class="card">
@@ -234,6 +264,33 @@
       <div id="townTable"></div>
       <h2 style="margin-top:16px">Follow-ups next 7 days</h2>
       <div id="weekDue"></div>
+    </div>
+    <div class="card">
+      <h2>Systems review <small>last 7 days</small></h2>
+      <div id="sysReview"></div>
+    </div>
+    <div class="card">
+      <h2>Weekly systems <small id="wkLabel"></small></h2>
+      <div id="wkSystems"></div>
+      <label>Weigh-in (lbs)</label>
+      <input id="wkWeight" type="number" step="0.1" inputmode="decimal" placeholder="This week's weigh-in">
+      <div class="note" id="wkWeightNote"></div>
+    </div>
+    <div class="card">
+      <h2>One change for next week</h2>
+      <p class="small muted" style="margin:0">Pick one system and make one change. It goes into that system's version log so you can see what actually improved it.</p>
+      <label>System</label>
+      <select id="chgSys"></select>
+      <label>The change</label>
+      <input id="chgText" placeholder="e.g. Move workout before scripture">
+      <div class="actions"><button class="btn" id="chgBtn">Commit change</button></div>
+      <div class="note" id="chgNote"></div>
+    </div>
+    <div class="card">
+      <h2>AI coach</h2>
+      <p class="small muted" style="margin:0">Packages your whole week — sales numbers, towns, every system's completion and friction notes, day scores, reviews and your game plan — with coaching instructions. Paste it into Claude and you get next week's plan.</p>
+      <div class="actions"><button class="btn" id="coachCopy">Copy week for AI coach</button></div>
+      <div class="note" id="coachNote"></div>
     </div>
     <div class="card">
       <h2>My weekly B2B game plan <small id="gpSaved"></small></h2>
@@ -279,6 +336,7 @@
   <button data-tab="today" class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="17" rx="3"/><path d="M3 9h18M8 2v4M16 2v4"/></svg>Today</button>
   <button data-tab="biz"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M5 21V8l7-5 7 5v13M9 21v-6h6v6"/></svg>Businesses</button>
   <button data-tab="map"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>Map</button>
+  <button data-tab="systems"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/><path d="M9 12l2 2 4-4"/></svg>Systems</button>
   <button data-tab="week"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19V5M4 19h16M8 15l4-4 3 3 5-6"/></svg>Week</button>
 </nav>
 
@@ -402,7 +460,7 @@
 
   // ================= storage (on this phone) =================
   const KEY = "fieldsales.v1";
-  const blank = () => ({ biz:[], days:{}, weeks:{}, settings:{} });
+  const blank = () => ({ biz:[], days:{}, weeks:{}, settings:{}, sd:{}, sw:{} });
   let S;
   try { S = Object.assign(blank(), JSON.parse(localStorage.getItem(KEY) || "{}")); } catch { S = blank(); }
   function save(){
@@ -446,18 +504,19 @@
 
   // ================= tabs =================
   function renderHeader(){
-    const titles = { today:"Today", biz:"Businesses", map:"Map", week:"Week" };
+    const titles = { today:"Today", biz:"Businesses", map:"Map", systems:"Systems", week:"Week" };
     $("hdrTitle").textContent = titles[UI.tab];
     $("hdrDate").textContent = new Date().toLocaleDateString(undefined,{weekday:"long",month:"long",day:"numeric"});
   }
   function setTab(t){
     UI.tab = t;
     document.querySelectorAll("nav button").forEach(b => b.classList.toggle("on", b.dataset.tab === t));
-    ["today","biz","map","week"].forEach(x => $("tab-"+x).classList.toggle("hide", x !== t));
+    ["today","biz","map","systems","week"].forEach(x => $("tab-"+x).classList.toggle("hide", x !== t));
     renderHeader();
     if (t === "map") renderMap();
     if (t === "week") renderWeek();
     if (t === "today") renderToday();
+    if (t === "systems") renderSystems();
     window.scrollTo(0,0);
   }
   document.querySelectorAll("nav button").forEach(b => b.addEventListener("click", () => setTab(b.dataset.tab)));
@@ -931,6 +990,7 @@
     [["tContacts",T.contacts],["tDemos",T.demos],["tHours",T.hours],["tWins",T.wins]].forEach(([id,v]) => { if (document.activeElement !== $(id)) $(id).value = v; });
     if (document.activeElement !== $("sName")) $("sName").value = S.settings.sName || "";
     const past = Object.entries(S.weeks).filter(([w,x]) => w !== nw && x.text).sort((a,b) => b[0].localeCompare(a[0]));
+    renderSysReview();
     $("weekList").innerHTML = past.length ? past.map(([w,x]) => `<div class="item" data-week="${esc(w)}"><div class="main"><div class="t">Week of ${esc(niceDate(w))}</div><div class="s">${esc(x.text.slice(0,90))}</div></div></div>`).join("") : `<div class="empty">No past plans yet.</div>`;
   }
   $("weekList").addEventListener("click", e => {
@@ -988,16 +1048,337 @@
     e.target.value = "";
   });
 
+  // ================= SYSTEMS =================
+  const SLOTS = { morning:"Morning", midday:"Midday", evening:"Evening", weekly:"Weekly" };
+  const SYS_DEFAULTS = [
+    { id:"morning", name:"Morning", cadence:"daily", purpose:"Win the first 90 minutes so the day runs on my plan, not on reaction.", metric:"Steps completed",
+      steps:[["Up on time","morning"],["No phone first 30 minutes","morning"],["Scripture & prayer","morning"],["Workout or walk","morning"],["Set today's Big 3","morning"],["Set sales game plan (Today tab)","morning"]] },
+    { id:"prospecting", name:"Prospecting", cadence:"daily", auto:"sales", purpose:"Hit 6 demos a day and build a pipeline that converts.", metric:"Contacts, demos, hours vs target (automatic)",
+      steps:[["Agency call (Mon/Wed 8:00, Fri 9:00)","evening"],["At first business by 9:00","evening"],["Follow-ups before new doors","evening"],["Worked one town, densest areas first","evening"],["Logged every visit as it happened","evening"],["Asked the systems question on demos & friendly no's","evening"]] },
+    { id:"fitness", name:"Fitness", cadence:"daily", purpose:"Hit my weight target and have the energy for 8+ hour days.", metric:"Workouts this week + weekly weigh-in trend",
+      steps:[["Gym session (if scheduled)","morning"],["Followed meal plan","evening"],["Protein every meal","evening"],["Hit water target","evening"],["No eating after cutoff","evening"]] },
+    { id:"faith", name:"Faith", cadence:"daily", purpose:"Stay rooted and grow as a leader, not just perform the role.", metric:"Scripture & prayer streak + BILD sessions this week",
+      steps:[["Scripture reading","morning"],["Prayer","morning"],["BILD study block (if scheduled)","evening"],["Church leadership prep (if needed)","evening"]] },
+    { id:"shutdown", name:"Shutdown", cadence:"daily", purpose:"Close the workday cleanly so nothing lives in my head overnight.", metric:"Steps completed",
+      steps:[["Ended shift clock","evening"],["Logged any missed visits","evening"],["Follow-up date on every non-sale","evening"],["Evening review done (Today tab)","evening"],["Phone away on time","evening"]] },
+    { id:"finances", name:"Finances", cadence:"weekly", purpose:"Know my numbers and move toward my financial goals instead of guessing.", metric:"Weekly check done + income logged",
+      steps:[["Logged income & commissions","weekly"],["10-minute money check (in / out)","weekly"],["Tithing & giving","weekly"],["Savings transfer","weekly"],["Blackout books on track","weekly"]] },
+    { id:"learning", name:"Learning / AI business", cadence:"weekly", purpose:"Build the skills for the AI business without stealing time from sales.", metric:"Learning blocks done + owner problems logged",
+      steps:[["Learning block 1 (45 min)","weekly"],["Learning block 2 (45 min)","weekly"],["Reviewed owner notes for patterns","weekly"]] },
+    { id:"relationships", name:"Relationships", cadence:"weekly", purpose:"Stay present with the people who matter while I build.", metric:"Intentional blocks this week",
+      steps:[["Intentional time with partner / family","weekly"],["Reached out to a friend or mentor","weekly"],["Phone down at meals","weekly"],["Replied to church people within a day","weekly"]] }
+  ];
+  const rid = () => Math.random().toString(36).slice(2,9);
+  function seedSystems(){
+    if (!S.sd) S.sd = {}; if (!S.sw) S.sw = {};
+    if (Array.isArray(S.systems)) return;
+    S.systems = SYS_DEFAULTS.map(x => ({ id:x.id, name:x.name, cadence:x.cadence, purpose:x.purpose, metric:x.metric, auto:x.auto||"", active:true,
+      steps:x.steps.map(([t,sl]) => ({ id:"st"+rid(), text:t, slot:sl })), log:[{ date:today(), v:1, text:"Starting version" }] }));
+    save();
+  }
+  const sdGet = d => (S.sd && S.sd[d]) || {};
+  function sdSet(d, patch){ S.sd[d] = { ...sdGet(d), ...patch }; save(); }
+  const activeSys = () => (S.systems||[]).filter(x => x.active !== false);
+  const dailySys = () => activeSys().filter(x => x.cadence === "daily");
+  const sysById = id => (S.systems||[]).find(x => x.id === id);
+  if (!UI.sysOpen) UI.sysOpen = {};
+
+  function defaultView(){ const h = new Date().getHours(); return h < 11 ? "morning" : h < 16 ? "midday" : "evening"; }
+  function routeHash(){
+    const h = location.hash.slice(1);
+    if (["morning","midday","evening","manage"].includes(h)) { UI.sysView = h; setTab("systems"); }
+  }
+
+  function completion(sys, d){
+    const c = sdGet(d).checks || {};
+    let done = 0, tot = 0;
+    sys.steps.filter(st => st.slot !== "weekly").forEach(st => { const v = c[st.id]; if (v === "na") return; tot++; if (v === "done") done++; });
+    return tot ? { done, tot, pct: done/tot } : null;
+  }
+  function dayTouched(d){ const x = sdGet(d); return !!(x.checks && Object.keys(x.checks).length) || !!x.checkins; }
+  function sevenDay(sys){
+    const days = [6,5,4,3,2,1,0].map(n => addDays(today(), -n)).filter(dayTouched);
+    let sum = 0, n = 0, friction = 0; const notes = [];
+    days.forEach(d => {
+      const c = completion(sys, d); if (c) { sum += c.pct; n++; }
+      const x = sdGet(d);
+      if ((x.ratings||{})[sys.id] === "friction") { friction++; const f = (x.friction||{})[sys.id]; if (f) notes.push(`${niceDate(d)}: ${f}`); }
+    });
+    return { pct: n ? sum/n : null, days:n, friction, notes };
+  }
+
+  const boxIcon = v => v === "done" ? "✓" : v === "na" ? "–" : "";
+  function stepRow(st, d){
+    const v = (sdGet(d).checks||{})[st.id];
+    return `<div class="step ${v||""}" data-act="step" data-id="${esc(st.id)}"><span class="box">${boxIcon(v)}</span><span class="txt" style="flex:1">${esc(st.text)}</span>${v==="na"?'<span class="tag">N/A</span>':""}</div>`;
+  }
+  function slotCards(slot, d){
+    return dailySys().map(sys => {
+      const steps = sys.steps.filter(st => st.slot === slot);
+      if (!steps.length) return "";
+      const c = sdGet(d).checks || {};
+      const done = steps.filter(st => c[st.id] === "done").length, tot = steps.filter(st => c[st.id] !== "na").length;
+      return `<div class="card"><h2>${esc(sys.name)} <small>${done}/${tot}</small></h2>${steps.map(st => stepRow(st, d)).join("")}</div>`;
+    }).join("");
+  }
+  function big3Html(d, editable){
+    const b = sdGet(d).big3 || [];
+    return [0,1,2].map(i => {
+      const it = b[i] || {};
+      if (!editable && !it.text) return "";
+      return `<div class="big3 ${it.done?"done":""}"><span class="box" data-act="big3" data-i="${i}">${it.done?"✓":""}</span>${editable ? `<input data-big3="${i}" value="${esc(it.text||"")}" placeholder="Priority ${i+1}">` : `<span style="flex:1">${esc(it.text)}</span>`}</div>`;
+    }).join("") || `<div class="small muted">No Big 3 set this morning.</div>`;
+  }
+  function pills(key, vals, cur, opts={}){
+    return `<div class="pill">${vals.map(v => `<button data-act="set" data-k="${key}" data-val="${esc(v)}" class="${String(cur)===String(v)?"on":""} ${opts.bad && v===opts.bad?"bad":""}">${esc(opts.labels ? opts.labels[v] : v)}</button>`).join("")}</div>`;
+  }
+  function checkinBtn(slot, d){
+    const t = (sdGet(d).checkins||{})[slot];
+    return t ? `<div class="done-banner">${SLOTS[slot]} check-in done · ${new Date(t).toLocaleTimeString([], {hour:"numeric", minute:"2-digit"})}</div>`
+             : `<div class="actions"><button class="btn" data-act="checkin" data-slot="${slot}" style="flex:1">Complete ${SLOTS[slot].toLowerCase()} check-in</button></div>`;
+  }
+
+  function viewMorning(d){
+    const x = sdGet(d), prev = sdGet(addDays(d,-1));
+    return `
+      ${prev.firstMove ? `<div class="insight"><b>Your first move today:</b> ${esc(prev.firstMove)}</div>` : ""}
+      <div class="card"><h2>Today's Big 3</h2>${big3Html(d, true)}
+        <label>One thing I'm grateful for</label><input data-f="grateful" value="${esc(x.grateful||"")}">
+        <label>Energy</label>${pills("energy", [1,2,3,4,5], x.energy)}
+      </div>
+      ${slotCards("morning", d)}
+      <div class="card"><h2>Sales</h2><p class="small muted" style="margin:0 0 8px">Set your towns and route for the day.</p><button class="btn ghost sm" data-act="goto" data-tab="today">Open today's game plan</button></div>
+      ${checkinBtn("morning", d)}`;
+  }
+  function viewMidday(d){
+    const x = sdGet(d), st = statsFor(d), T = targets(), lh = liveHours(d);
+    const ms = dailySys().map(sys => { const steps = sys.steps.filter(s => s.slot === "morning"); if (!steps.length) return ""; const c = x.checks||{}; const done = steps.filter(s => c[s.id]==="done").length, tot = steps.filter(s => c[s.id]!=="na").length; return `<div class="small" style="padding:3px 0">${esc(sys.name)} (morning): <b>${done}/${tot}</b></div>`; }).join("");
+    return `
+      <div class="card"><h2>Scoreboard so far</h2><div class="score">${statBox("Contacts", st.contacts, T.contacts)}${statBox("Demos", st.demos, T.demos)}${statBox("Hours", lh, T.hours, fmtH)}</div></div>
+      <div class="card"><h2>Big 3</h2>${big3Html(d, false)}</div>
+      <div class="card"><h2>Am I on track?</h2>
+        ${pills("track", ["on","off"], x.track, { labels:{on:"On track", off:"Off track"}, bad:"off" })}
+        <label>${x.track === "off" ? "What I'm changing this afternoon" : "Anything to adjust? (optional)"}</label>
+        <input data-f="fix" value="${esc(x.fix||"")}">
+        ${ms ? `<label>Morning systems</label>${ms}` : ""}
+      </div>
+      ${checkinBtn("midday", d)}`;
+  }
+  function viewEvening(d){
+    const x = sdGet(d);
+    const rate = dailySys().filter(sys => sys.steps.some(s => s.slot !== "weekly")).map(sys => {
+      const r = (x.ratings||{})[sys.id], c = completion(sys, d);
+      return `<div style="padding:8px 0;border-bottom:1px solid var(--line)"><div class="row" style="align-items:center"><b style="flex:1">${esc(sys.name)}</b><span class="small muted" style="flex:none">${c ? `${c.done}/${c.tot}` : ""}</span></div>
+        <div class="pill" style="margin-top:6px"><button data-act="rate" data-sys="${esc(sys.id)}" data-val="smooth" class="${r==="smooth"?"on":""}">Smooth</button><button data-act="rate" data-sys="${esc(sys.id)}" data-val="friction" class="${r==="friction"?"on bad":""}">Friction</button></div>
+        ${r === "friction" ? `<input data-fric="${esc(sys.id)}" value="${esc((x.friction||{})[sys.id]||"")}" placeholder="What broke?" style="margin-top:6px">` : ""}</div>`;
+    }).join("");
+    return `
+      <div class="card"><h2>Big 3</h2>${big3Html(d, false)}</div>
+      ${slotCards("evening", d)}
+      <div class="card"><h2>How did each system run?</h2>${rate}</div>
+      <div class="card"><h2>Close the day</h2>
+        <label>Day score</label>${pills("score", [1,2,3,4,5,6,7,8,9,10], x.score)}
+        <label>One win</label><input data-f="win" value="${esc(x.win||"")}">
+        <label>One lesson</label><input data-f="lesson" value="${esc(x.lesson||"")}">
+        <label>Tomorrow's first move</label><input data-f="firstMove" value="${esc(x.firstMove||"")}" placeholder="Shows up at the top of tomorrow's morning check-in">
+      </div>
+      ${checkinBtn("evening", d)}`;
+  }
+  function viewManage(){
+    const list = (S.systems||[]).map(sys => {
+      const open = UI.sysOpen[sys.id], sd7 = sysCadenceStat(sys), last = sys.log[sys.log.length-1] || { v:1 };
+      const head = `<div class="item" data-act="toggle" data-sys="${esc(sys.id)}"><div class="main"><div class="t">${esc(sys.name)}${sys.active===false?' <span class="tag">Archived</span>':""}</div><div class="s">${esc(sys.cadence === "daily" ? "Daily" : "Weekly")} · v${last.v} · ${esc(sd7)}</div></div><span class="muted">${open?"▴":"▾"}</span></div>`;
+      if (!open) return head;
+      return head + `<div class="box" style="margin:4px 0 12px">
+        <label>Name</label><input data-sysf="name" data-sys="${esc(sys.id)}" value="${esc(sys.name)}">
+        <label>Purpose (the result it produces)</label><textarea data-sysf="purpose" data-sys="${esc(sys.id)}" style="min-height:56px">${esc(sys.purpose||"")}</textarea>
+        <label>Metric</label><input data-sysf="metric" data-sys="${esc(sys.id)}" value="${esc(sys.metric||"")}">
+        <label>Cadence</label><select data-cad="${esc(sys.id)}"><option value="daily" ${sys.cadence==="daily"?"selected":""}>Daily</option><option value="weekly" ${sys.cadence==="weekly"?"selected":""}>Weekly</option></select>
+        <label>Steps</label>
+        ${sys.steps.map(st => `<div class="sysrow"><input data-steptext="${esc(st.id)}" data-sys="${esc(sys.id)}" value="${esc(st.text)}"><select data-stepslot="${esc(st.id)}" data-sys="${esc(sys.id)}">${(sys.cadence==="weekly"?["weekly"]:["morning","midday","evening"]).map(sl => `<option value="${sl}" ${st.slot===sl?"selected":""}>${SLOTS[sl]}</option>`).join("")}</select><button class="x2" data-act="delstep" data-sys="${esc(sys.id)}" data-id="${esc(st.id)}" aria-label="Remove step">×</button></div>`).join("")}
+        <div class="actions"><button class="btn plain sm" data-act="addstep" data-sys="${esc(sys.id)}">+ Add step</button></div>
+        <label>Version log</label>
+        <div class="visits">${sys.log.slice().reverse().map(l => `<div><b>v${l.v}</b> · ${esc(niceDate(l.date))} — ${esc(l.text)}</div>`).join("")}</div>
+        <div class="sysrow"><input id="log-${esc(sys.id)}" placeholder="What did you change and why?"><button class="btn sm" data-act="logchange" data-sys="${esc(sys.id)}" style="flex:none">Log v${last.v+1}</button></div>
+        <div class="actions"><button class="btn danger sm" data-act="archive" data-sys="${esc(sys.id)}">${sys.active===false?"Restore system":"Archive system"}</button></div>
+      </div>`;
+    }).join("");
+    return `<div class="card"><h2>My systems <small>tap to edit</small></h2><p class="small muted" style="margin:0 0 6px">Each system: purpose, steps, one metric. Edit steps freely; log a version when you deliberately change how a system works.</p><div class="list">${list}</div>
+      <div class="actions"><button class="btn ghost sm" data-act="addsys">+ New system</button></div></div>`;
+  }
+  function sysCadenceStat(sys){
+    if (sys.cadence === "weekly") {
+      const w = (S.sw[weekStart(today())]||{}).checks || {};
+      return `${sys.steps.filter(st => w[st.id]).length}/${sys.steps.length} this week`;
+    }
+    const s7 = sevenDay(sys);
+    return s7.pct == null ? "no data yet" : `${Math.round(s7.pct*100)}% last 7 days${s7.friction?` · ${s7.friction} friction`:""}`;
+  }
+
+  function renderSystems(){
+    if (!UI.sysView) UI.sysView = defaultView();
+    [...$("sysSeg").children].forEach(b => b.classList.toggle("on", b.dataset.v === UI.sysView));
+    const d = today();
+    const html = UI.sysView === "morning" ? viewMorning(d) : UI.sysView === "midday" ? viewMidday(d) : UI.sysView === "evening" ? viewEvening(d) : viewManage();
+    $("sysView").innerHTML = html;
+  }
+  $("sysSeg").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; UI.sysView = b.dataset.v; renderSystems(); window.scrollTo(0,0); });
+
+  // clicks inside the Systems tab
+  $("sysView").addEventListener("click", e => {
+    const el = e.target.closest("[data-act]"); if (!el) return;
+    const act = el.dataset.act, d = today();
+    if (act === "step") {
+      const c = { ...(sdGet(d).checks||{}) }, v = c[el.dataset.id];
+      const nv = !v ? "done" : v === "done" ? "na" : undefined;
+      if (nv) c[el.dataset.id] = nv; else delete c[el.dataset.id];
+      sdSet(d, { checks:c });
+    } else if (act === "big3") {
+      const b = [...(sdGet(d).big3 || [{},{},{}])]; const i = +el.dataset.i; b[i] = { ...(b[i]||{}), done: !(b[i]||{}).done }; sdSet(d, { big3:b });
+    } else if (act === "set") {
+      const k = el.dataset.k; let v = el.dataset.val; if (/^\d+$/.test(v)) v = +v;
+      sdSet(d, { [k]: sdGet(d)[k] === v ? null : v });
+    } else if (act === "rate") {
+      const r = { ...(sdGet(d).ratings||{}) }; r[el.dataset.sys] = r[el.dataset.sys] === el.dataset.val ? undefined : el.dataset.val; sdSet(d, { ratings:r });
+    } else if (act === "checkin") {
+      sdSet(d, { checkins: { ...(sdGet(d).checkins||{}), [el.dataset.slot]: Date.now() } }); toast(`${SLOTS[el.dataset.slot]} check-in done`);
+    } else if (act === "goto") { setTab(el.dataset.tab); return; }
+    else if (act === "toggle") { UI.sysOpen[el.dataset.sys] = !UI.sysOpen[el.dataset.sys]; }
+    else if (act === "addstep") { const sys = sysById(el.dataset.sys); sys.steps.push({ id:"st"+rid(), text:"New step", slot: sys.cadence === "weekly" ? "weekly" : "evening" }); save(); }
+    else if (act === "delstep") { const sys = sysById(el.dataset.sys); sys.steps = sys.steps.filter(st => st.id !== el.dataset.id); save(); }
+    else if (act === "logchange") {
+      const sys = sysById(el.dataset.sys), inp = $("log-" + sys.id), text = (inp.value||"").trim();
+      if (!text) { toast("Describe the change first"); return; }
+      sys.log.push({ date:today(), v:(sys.log[sys.log.length-1]||{v:0}).v + 1, text }); save(); toast(`${sys.name} v${sys.log[sys.log.length-1].v} logged`);
+    }
+    else if (act === "archive") { const sys = sysById(el.dataset.sys); sys.active = sys.active === false; save(); }
+    else if (act === "addsys") {
+      const id = "sys" + rid();
+      S.systems.push({ id, name:"New system", cadence:"daily", purpose:"", metric:"Steps completed", auto:"", active:true, steps:[{ id:"st"+rid(), text:"First step", slot:"morning" }], log:[{ date:today(), v:1, text:"Starting version" }] });
+      UI.sysOpen[id] = true; save();
+    }
+    renderSystems();
+  });
+  // typing inside the Systems tab (saves on every keystroke, no re-render so focus stays)
+  $("sysView").addEventListener("input", e => {
+    const t = e.target, d = today();
+    if (t.dataset.f) sdSet(d, { [t.dataset.f]: t.value });
+    else if (t.dataset.big3 != null) { const b = [...(sdGet(d).big3 || [{},{},{}])]; const i = +t.dataset.big3; b[i] = { ...(b[i]||{}), text:t.value }; sdSet(d, { big3:b }); }
+    else if (t.dataset.fric) sdSet(d, { friction: { ...(sdGet(d).friction||{}), [t.dataset.fric]: t.value } });
+    else if (t.dataset.sysf) { const sys = sysById(t.dataset.sys); sys[t.dataset.sysf] = t.value; save(); }
+    else if (t.dataset.steptext) { const sys = sysById(t.dataset.sys); const st = sys.steps.find(x => x.id === t.dataset.steptext); if (st) { st.text = t.value; save(); } }
+  });
+  $("sysView").addEventListener("change", e => {
+    const t = e.target;
+    if (t.dataset.stepslot) { const sys = sysById(t.dataset.sys); const st = sys.steps.find(x => x.id === t.dataset.stepslot); if (st) { st.slot = t.value; save(); } }
+    else if (t.dataset.cad) { const sys = sysById(t.dataset.cad); sys.cadence = t.value; sys.steps.forEach(st => { st.slot = t.value === "weekly" ? "weekly" : (st.slot === "weekly" ? "evening" : st.slot); }); save(); renderSystems(); }
+  });
+
+  // ---------- Week tab: systems review ----------
+  function renderSysReview(){
+    const rows = dailySys().map(sys => ({ sys, s7: sevenDay(sys) }));
+    const days = [6,5,4,3,2,1,0].map(n => addDays(today(), -n));
+    const scores = days.map(d => sdGet(d).score).filter(v => typeof v === "number");
+    const b3 = days.flatMap(d => (sdGet(d).big3||[]).filter(x => x && x.text));
+    const ins = [];
+    const withData = rows.filter(r => r.s7.pct != null);
+    if (!withData.length) ins.push("No system check-ins logged yet. Run your morning and evening check-ins and this fills in.");
+    else {
+      const worst = withData.slice().sort((a,b) => (b.s7.friction - a.s7.friction) || (a.s7.pct - b.s7.pct))[0];
+      ins.push(`Weakest system: ${worst.sys.name} — ${Math.round(worst.s7.pct*100)}% completion, ${worst.s7.friction} friction day${worst.s7.friction===1?"":"s"}. This is the one to improve next week.`);
+      const best = withData.slice().sort((a,b) => b.s7.pct - a.s7.pct)[0];
+      if (best !== worst) ins.push(`Strongest: ${best.sys.name} at ${Math.round(best.s7.pct*100)}%.`);
+    }
+    if (scores.length) ins.push(`Average day score ${ (scores.reduce((a,b)=>a+b,0)/scores.length).toFixed(1) } across ${scores.length} day${scores.length===1?"":"s"}.`);
+    if (b3.length) ins.push(`Big 3: ${b3.filter(x => x.done).length} of ${b3.length} priorities completed.`);
+    const notes = rows.flatMap(r => r.s7.notes.map(n => `${r.sys.name} — ${n}`));
+    $("sysReview").innerHTML = ins.map(x => `<div class="insight">${esc(x)}</div>`).join("") +
+      (withData.length ? `<table style="margin-top:10px"><tr><th>System</th><th class="n">Done</th><th class="n">Friction</th></tr>${rows.map(r => `<tr><td>${esc(r.sys.name)}</td><td class="n">${r.s7.pct==null?"–":Math.round(r.s7.pct*100)+"%"}</td><td class="n">${r.s7.friction}</td></tr>`).join("")}</table>` : "") +
+      (notes.length ? `<label>Friction notes</label><div class="visits">${notes.map(n => `<div>${esc(n)}</div>`).join("")}</div>` : "");
+    // weekly systems checklist (this week)
+    const ws = weekStart(today()), w = S.sw[ws] || {}, wc = w.checks || {};
+    $("wkLabel").textContent = `week of ${niceDate(ws)}`;
+    $("wkSystems").innerHTML = activeSys().filter(x => x.cadence === "weekly").map(sys => `<div style="margin-bottom:8px"><b>${esc(sys.name)}</b> <span class="small muted">${sys.steps.filter(st => wc[st.id]).length}/${sys.steps.length}</span>${sys.steps.map(st => `<div class="step ${wc[st.id]?"done":""}" data-wk="${esc(st.id)}"><span class="box">${wc[st.id]?"✓":""}</span><span class="txt" style="flex:1">${esc(st.text)}</span></div>`).join("")}</div>`).join("") || `<div class="small muted">No weekly systems.</div>`;
+    if (document.activeElement !== $("wkWeight")) $("wkWeight").value = w.weight || "";
+    const prevW = (S.sw[addDays(ws,-7)]||{}).weight;
+    $("wkWeightNote").textContent = prevW && w.weight ? `${(w.weight - prevW) > 0 ? "+" : ""}${(w.weight - prevW).toFixed(1)} lbs vs last week` : "";
+    // change picker
+    const sel = $("chgSys"), keep = sel.value;
+    sel.innerHTML = activeSys().map(sys => `<option value="${esc(sys.id)}">${esc(sys.name)}</option>`).join("");
+    const worstId = withData.length ? withData.slice().sort((a,b) => (b.s7.friction - a.s7.friction) || (a.s7.pct - b.s7.pct))[0].sys.id : "";
+    sel.value = keep || worstId || (activeSys()[0]||{}).id || "";
+    const nw = addDays(ws, 7), ch = (S.weeks[nw]||{}).change;
+    $("chgNote").textContent = ch ? `Committed for next week: ${ (sysById(ch.sys)||{}).name || "" } — ${ch.text}` : "";
+  }
+  $("wkSystems").addEventListener("click", e => {
+    const el = e.target.closest("[data-wk]"); if (!el) return;
+    const ws = weekStart(today()), w = { ...(S.sw[ws]||{}) }, c = { ...(w.checks||{}) };
+    if (c[el.dataset.wk]) delete c[el.dataset.wk]; else c[el.dataset.wk] = true;
+    S.sw[ws] = { ...w, checks:c }; save(); renderSysReview();
+  });
+  $("wkWeight").addEventListener("input", e => { const ws = weekStart(today()); const v = parseFloat(e.target.value); S.sw[ws] = { ...(S.sw[ws]||{}), weight: isFinite(v) ? v : null }; save(); });
+  $("chgBtn").addEventListener("click", () => {
+    const sys = sysById($("chgSys").value), text = $("chgText").value.trim();
+    if (!sys || !text) { toast("Pick a system and describe the change"); return; }
+    const v = (sys.log[sys.log.length-1]||{v:0}).v + 1;
+    sys.log.push({ date:today(), v, text });
+    const nw = addDays(weekStart(today()), 7);
+    S.weeks[nw] = { ...(S.weeks[nw]||{}), change:{ sys:sys.id, text } };
+    save(); $("chgText").value = ""; toast(`${sys.name} v${v} committed`); renderSysReview();
+  });
+
+  // ---------- AI coach export ----------
+  function weekSummary(){
+    const d = today(), T = targets(), last7 = [6,5,4,3,2,1,0].map(n => addDays(d,-n)), I = insights();
+    const L = [];
+    L.push(`You are my weekly coach. I'm Isaac, 21, a B2B field sales rep selling supplemental insurance to small businesses in Ames, Boone and nearby Iowa towns. I think in systems: each area of my life is a system with a purpose, steps and one metric, and I improve one system per week. Be blunt and practical, Hormozi-style — numbers, bottlenecks, no fluff, no flattery.`, "");
+    L.push(`DAILY SALES TARGETS: ${T.contacts} contacts, ${T.demos} demos, ${T.hours}+ hours. Winning day = ${T.wins} of 3.`, "");
+    L.push("LAST 7 DAYS — SALES");
+    last7.forEach(dd => { const s = statsFor(dd), r = dayData(dd).review || {}; L.push(`${dd} ${parseYmd(dd).toLocaleDateString(undefined,{weekday:"short"})}: ${s.contacts} contacts, ${s.demos} demos, ${s.sales} sales, ${s.hours}h, towns: ${s.towns.join(", ")||"-"}${r.wins||r.misses?` | went well: ${r.wins||"-"} | to fix: ${r.misses||"-"}`:""}`); });
+    L.push("", "BY TOWN"); I.towns.forEach(([t,x]) => L.push(`${t}: ${x.c} contacts, ${x.d} demos, ${x.s} sales`)); if (!I.towns.length) L.push("no visits logged");
+    L.push("", "APP'S READ ON SALES"); I.list.forEach(x => L.push("- " + x));
+    L.push("", "LAST 7 DAYS — SYSTEMS");
+    dailySys().forEach(sys => { const s7 = sevenDay(sys); L.push(`${sys.name} (v${(sys.log[sys.log.length-1]||{v:1}).v}) — purpose: ${sys.purpose} | steps: ${sys.steps.map(x => x.text).join("; ")} | completion: ${s7.pct==null?"no data":Math.round(s7.pct*100)+"%"} over ${s7.days} logged days | friction days: ${s7.friction}${s7.notes.length?` | friction notes: ${s7.notes.join(" / ")}`:""}`); });
+    const ws = weekStart(d), wc = (S.sw[ws]||{}).checks || {};
+    activeSys().filter(x => x.cadence === "weekly").forEach(sys => L.push(`${sys.name} (weekly): ${sys.steps.map(st => `${st.text} ${wc[st.id]?"[done]":"[not done]"}`).join("; ")}`));
+    const w = (S.sw[ws]||{}).weight, pw = (S.sw[addDays(ws,-7)]||{}).weight;
+    if (w) L.push(`Weigh-in: ${w} lbs${pw?` (last week ${pw})`:""}`);
+    L.push("", "DAILY CHECK-INS");
+    last7.forEach(dd => { const x = sdGet(dd); if (!dayTouched(dd) && !x.score) return; const b = (x.big3||[]).filter(i => i && i.text); L.push(`${dd}: day score ${x.score ?? "-"}, energy ${x.energy ?? "-"}, midday ${x.track ?? "-"}${x.fix?` (${x.fix})`:""}, Big 3: ${b.map(i => `${i.text}${i.done?" ✓":" ✗"}`).join("; ") || "-"}${x.win?` | win: ${x.win}`:""}${x.lesson?` | lesson: ${x.lesson}`:""}`); });
+    const changes = activeSys().flatMap(sys => sys.log.filter(l => l.v > 1).slice(-2).map(l => `${sys.name} v${l.v} (${l.date}): ${l.text}`));
+    if (changes.length) { L.push("", "RECENT SYSTEM CHANGES"); changes.forEach(c => L.push("- " + c)); }
+    L.push("", "MY WEEKLY B2B GAME PLAN", (S.settings.gamePlan || "(not written yet)"));
+    const nw = addDays(ws,7), nwt = (S.weeks[nw]||{}).text; if (nwt) L.push("", "MY DRAFT FOR NEXT WEEK", nwt);
+    L.push("", "WHAT I WANT FROM YOU (under 400 words, plain text):",
+      "1. Scorecard: one honest paragraph on last week — sales vs targets and how my systems ran. If data is thin, say so.",
+      "2. Bottleneck: the ONE system (sales or personal) holding everything else back, with the evidence from the numbers.",
+      "3. One system change: a specific, testable change to that system for next week, written as the new step(s).",
+      "4. Next week Mon–Fri: town(s) and focus each day, follow-ups slotted in, keeping my fixed agency calls (Mon/Wed 8:00, Fri 9:00).",
+      "5. The number to hit by Friday, and one question for me to think about.");
+    return L.join("\n");
+  }
+  $("coachCopy").addEventListener("click", async () => {
+    const text = weekSummary();
+    try { await navigator.clipboard.writeText(text); $("coachNote").textContent = "Copied. Open Claude, paste it into a new chat, and send."; toast("Copied — paste into Claude"); }
+    catch {
+      $("coachNote").innerHTML = `Couldn't copy automatically. Select all of this and copy it:<textarea style="min-height:160px;margin-top:6px" readonly>${esc(text)}</textarea>`;
+    }
+  });
+
   // ================= boot =================
   function renderAll(){
     renderToday(); renderBizList();
     if (UI.tab === "map") renderMap();
     if (UI.tab === "week") renderWeek();
+    if (UI.tab === "systems") renderSystems();
   }
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone;
   if (!standalone && !S.settings.installTipDone && /iphone|ipad|ipod/i.test(navigator.userAgent)) $("installTip").classList.remove("hide");
   $("installDismiss").addEventListener("click", () => { $("installTip").classList.add("hide"); S.settings.installTipDone = true; save(); });
+  seedSystems();
   renderHeader(); renderAll();
+  routeHash();
+  window.addEventListener("hashchange", routeHash);
   if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(()=>{});
 })();
 </script>
