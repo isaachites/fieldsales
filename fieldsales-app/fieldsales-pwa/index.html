@@ -245,6 +245,7 @@
       <button data-v="morning">Morning</button>
       <button data-v="midday">Midday</button>
       <button data-v="evening">Evening</button>
+      <button data-v="basics">Basics</button>
       <button data-v="manage">Systems</button>
     </div>
     <div id="sysView"></div>
@@ -460,7 +461,7 @@
 
   // ================= storage (on this phone) =================
   const KEY = "fieldsales.v1";
-  const blank = () => ({ biz:[], days:{}, weeks:{}, settings:{}, sd:{}, sw:{} });
+  const blank = () => ({ biz:[], days:{}, weeks:{}, settings:{}, sd:{}, sw:{}, bb:{} });
   let S;
   try { S = Object.assign(blank(), JSON.parse(localStorage.getItem(KEY) || "{}")); } catch { S = blank(); }
   function save(){
@@ -1086,7 +1087,7 @@
   function defaultView(){ const h = new Date().getHours(); return h < 11 ? "morning" : h < 16 ? "midday" : "evening"; }
   function routeHash(){
     const h = location.hash.slice(1);
-    if (["morning","midday","evening","manage"].includes(h)) { UI.sysView = h; setTab("systems"); }
+    if (["morning","midday","evening","basics","manage"].includes(h)) { UI.sysView = h; setTab("systems"); }
   }
 
   function completion(sys, d){
@@ -1140,8 +1141,10 @@
 
   function viewMorning(d){
     const x = sdGet(d), prev = sdGet(addDays(d,-1));
+    const fN = (S.bb && S.bb[weekStart(d)] || {}).focus, fItem = typeof BASICS !== "undefined" && BASICS.find(([n]) => n === fN);
     return `
       ${prev.firstMove ? `<div class="insight"><b>Your first move today:</b> ${esc(prev.firstMove)}</div>` : ""}
+      ${fItem ? `<div class="insight"><b>Focus basic this week (#${fItem[0]}):</b> ${esc(fItem[2])}</div>` : ""}
       <div class="card"><h2>Today's Big 3</h2>${big3Html(d, true)}
         <label>One thing I'm grateful for</label><input data-f="grateful" value="${esc(x.grateful||"")}">
         <label>Energy</label>${pills("energy", [1,2,3,4,5], x.energy)}
@@ -1219,7 +1222,7 @@
     if (!UI.sysView) UI.sysView = defaultView();
     [...$("sysSeg").children].forEach(b => b.classList.toggle("on", b.dataset.v === UI.sysView));
     const d = today();
-    const html = UI.sysView === "morning" ? viewMorning(d) : UI.sysView === "midday" ? viewMidday(d) : UI.sysView === "evening" ? viewEvening(d) : viewManage();
+    const html = UI.sysView === "morning" ? viewMorning(d) : UI.sysView === "midday" ? viewMidday(d) : UI.sysView === "evening" ? viewEvening(d) : UI.sysView === "basics" ? viewBasics() : viewManage();
     $("sysView").innerHTML = html;
   }
   $("sysSeg").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; UI.sysView = b.dataset.v; renderSystems(); window.scrollTo(0,0); });
@@ -1243,6 +1246,12 @@
     } else if (act === "checkin") {
       sdSet(d, { checkins: { ...(sdGet(d).checkins||{}), [el.dataset.slot]: Date.now() } }); toast(`${SLOTS[el.dataset.slot]} check-in done`);
     } else if (act === "goto") { setTab(el.dataset.tab); return; }
+    else if (act === "bbscore" || act === "bbuse") {
+      e.preventDefault();
+      const ws = weekStart(d), sc = { ...(bbWeek(ws).scores||{}) }, n = +el.dataset.n, v = +el.dataset.val;
+      if (act === "bbscore" && sc[n] === v) delete sc[n]; else sc[n] = v;
+      bbSet(ws, { scores:sc });
+    }
     else if (act === "toggle") { UI.sysOpen[el.dataset.sys] = !UI.sysOpen[el.dataset.sys]; }
     else if (act === "addstep") { const sys = sysById(el.dataset.sys); sys.steps.push({ id:"st"+rid(), text:"New step", slot: sys.cadence === "weekly" ? "weekly" : "evening" }); save(); }
     else if (act === "delstep") { const sys = sysById(el.dataset.sys); sys.steps = sys.steps.filter(st => st.id !== el.dataset.id); save(); }
@@ -1271,6 +1280,7 @@
   $("sysView").addEventListener("change", e => {
     const t = e.target;
     if (t.dataset.stepslot) { const sys = sysById(t.dataset.sys); const st = sys.steps.find(x => x.id === t.dataset.stepslot); if (st) { st.slot = t.value; save(); } }
+    else if (t.dataset.bbfocus) { bbSet(weekStart(today()), { focus: t.value ? +t.value : null }); renderSystems(); }
     else if (t.dataset.cad) { const sys = sysById(t.dataset.cad); sys.cadence = t.value; sys.steps.forEach(st => { st.slot = t.value === "weekly" ? "weekly" : (st.slot === "weekly" ? "evening" : st.slot); }); save(); renderSystems(); }
   });
 
@@ -1289,6 +1299,9 @@
       const best = withData.slice().sort((a,b) => b.s7.pct - a.s7.pct)[0];
       if (best !== worst) ins.push(`Strongest: ${best.sys.name} at ${Math.round(best.s7.pct*100)}%.`);
     }
+    const bt = bbTotal(weekStart(today())), bpt = bbTotal(addDays(weekStart(today()), -7));
+    if (bt.rated) ins.push(`Back to the Basics: ${bt.total}/100 (${grade(bt.total)})${bpt.rated ? `, last week ${bpt.total}` : ""}. ${bt.rated < 25 ? `${25-bt.rated} basics still unrated — finish scoring in Systems → Basics.` : ""}`);
+    else ins.push("Back to the Basics not scored this week yet — do it in Systems → Basics.");
     if (scores.length) ins.push(`Average day score ${ (scores.reduce((a,b)=>a+b,0)/scores.length).toFixed(1) } across ${scores.length} day${scores.length===1?"":"s"}.`);
     if (b3.length) ins.push(`Big 3: ${b3.filter(x => x.done).length} of ${b3.length} priorities completed.`);
     const notes = rows.flatMap(r => r.s7.notes.map(n => `${r.sys.name} — ${n}`));
@@ -1345,13 +1358,18 @@
     if (w) L.push(`Weigh-in: ${w} lbs${pw?` (last week ${pw})`:""}`);
     L.push("", "DAILY CHECK-INS");
     last7.forEach(dd => { const x = sdGet(dd); if (!dayTouched(dd) && !x.score) return; const b = (x.big3||[]).filter(i => i && i.text); L.push(`${dd}: day score ${x.score ?? "-"}, energy ${x.energy ?? "-"}, midday ${x.track ?? "-"}${x.fix?` (${x.fix})`:""}, Big 3: ${b.map(i => `${i.text}${i.done?" ✓":" ✗"}`).join("; ") || "-"}${x.win?` | win: ${x.win}`:""}${x.lesson?` | lesson: ${x.lesson}`:""}`); });
+    { const bws = weekStart(d), bw = bbWeek(bws), bsc = bw.scores || {}, bt = bbTotal(bws), bpt = bbTotal(addDays(bws,-7));
+      L.push("", `BACK TO THE BASICS (company checklist, 25 basics scored 0–4, max 100): ${bt.rated ? `${bt.total}/100 (${grade(bt.total)}), ${bt.rated}/25 rated` : "not scored"}${bpt.rated ? ` | last week ${bpt.total}` : ""}`);
+      BASICS.slice().sort((a,b)=>a[0]-b[0]).forEach(([n,,tx]) => { if (typeof bsc[n] === "number") L.push(`${n}. ${tx}: ${bsc[n]}`); });
+      const fi = BASICS.find(([n]) => n === bw.focus); if (fi) L.push(`Focus basic this week: #${fi[0]} ${fi[2]}`); }
     const changes = activeSys().flatMap(sys => sys.log.filter(l => l.v > 1).slice(-2).map(l => `${sys.name} v${l.v} (${l.date}): ${l.text}`));
     if (changes.length) { L.push("", "RECENT SYSTEM CHANGES"); changes.forEach(c => L.push("- " + c)); }
     L.push("", "MY WEEKLY B2B GAME PLAN", (S.settings.gamePlan || "(not written yet)"));
     const nw = addDays(ws,7), nwt = (S.weeks[nw]||{}).text; if (nwt) L.push("", "MY DRAFT FOR NEXT WEEK", nwt);
     L.push("", "WHAT I WANT FROM YOU (under 400 words, plain text):",
       "1. Scorecard: one honest paragraph on last week — sales vs targets and how my systems ran. If data is thin, say so.",
-      "2. Bottleneck: the ONE system (sales or personal) holding everything else back, with the evidence from the numbers.",
+      "2. Bottleneck: the ONE system or basic (sales or personal) holding everything else back, with the evidence from the numbers.",
+      "2b. Recommend which Back to the Basics item should be my focus basic next week and how to practice it.",
       "3. One system change: a specific, testable change to that system for next week, written as the new step(s).",
       "4. Next week Mon–Fri: town(s) and focus each day, follow-ups slotted in, keeping my fixed agency calls (Mon/Wed 8:00, Fri 9:00).",
       "5. The number to hit by Friday, and one question for me to think about.");
@@ -1365,6 +1383,119 @@
     }
   });
 
+  // ================= BACK TO THE BASICS =================
+  const BASICS = [
+    [1,"activity","8+ hours a day in the field calling on 30 prospects, 5 days a week (40 hrs in front of prospects)"],
+    [2,"activity","Set start time and set stop time — never start later, never finish earlier"],
+    [3,"activity","6+ closing demonstrations every day"],
+    [4,"activity","Use the Daily Goal Cards every day"],
+    [5,"activity","Complete and follow your Weekly Game Plan (shared with your team leader)"],
+    [6,"presentation","Approach as taught: smile, wipe your feet while moving forward, ask for a place to sit"],
+    [7,"presentation","Demonstration word for word, as taught"],
+    [8,"presentation","Close word for word, as taught"],
+    [9,"presentation","Close 3+ times using the responses after every objection"],
+    [10,"presentation","Responses word for word, as taught"],
+    [11,"presentation","Create the Need on the indirect costs page (\"If you couldn't work for 6–12 months…\" and why)"],
+    [12,"presentation","Fill the Need: tie features, benefits and advantages to their personal need"],
+    [13,"presentation","Ask questions throughout the presentation to gauge interest"],
+    [21,"presentation","Use 5–10 names in every approach"],
+    [22,"presentation","Use 10+ names / names list in every presentation"],
+    [14,"mindset","Read 2–3 testimonials and 2–3 Eagles each morning (rotate them)"],
+    [15,"mindset","Review weekly goals and why they matter, at the start of each week"],
+    [16,"mindset","Review daily goals and why they matter, every morning"],
+    [19,"mindset","15–30 minutes of positive, uplifting reading every morning (Attitude Food)"],
+    [20,"mindset","15–30 minutes of technical sales study every night (talk, close, responses)"],
+    [23,"mindset","Positive, instructional material in the car"],
+    [25,"mindset","Use Fit-Training or conference calls"],
+    [17,"prospects","Ask everyone for, keep and use a neat, organized pre-approach"],
+    [18,"prospects","Get referrals from everyone, whether they bought or not"],
+    [24,"prospects","Before finishing, know exactly where you're starting tomorrow"]
+  ];
+  const BB_GROUPS = { activity:"Activity", presentation:"Presentation", mindset:"Mindset & preparation", prospects:"Prospects & referrals" };
+  const BB_DAILY = { id:"basics", name:"Back to the Basics", cadence:"daily", purpose:"Do the duplicatable basics every day — the reps who do them most consistently win.", metric:"Weekly Basics score out of 100",
+    steps:[["bb-16","Reviewed today's goals and why they matter","morning"],["bb-4","Filled out my Daily Goal Card","morning"],["bb-14","Read 2–3 testimonials & 2–3 Eagles","morning"],["bb-19","15–30 min Attitude Food reading","morning"],["bb-23","Positive material in the car","morning"],
+           ["bb-17","Kept a neat, organized pre-approach all day","evening"],["bb-18","Asked everyone for referrals","evening"],["bb-20","15–30 min technical sales study","evening"],["bb-24","Know exactly where I start tomorrow","evening"]] };
+  const BB_WEEKLY = { id:"basicsweekly", name:"Basics — weekly", cadence:"weekly", purpose:"Set the week up the way the basics require.", metric:"Weekly steps done",
+    steps:[["bb-5","Wrote my Weekly Game Plan and shared it with my team leader","weekly"],["bb-15","Reviewed my weekly goals and why they matter","weekly"],["bb-25","Fit-Training or conference calls","weekly"]] };
+  function seedBasics(){
+    if (!S.bb) S.bb = {};
+    let changed = false;
+    [BB_DAILY, BB_WEEKLY].forEach(def => {
+      if ((S.systems||[]).some(x => x.id === def.id)) return;
+      S.systems.push({ id:def.id, name:def.name, cadence:def.cadence, purpose:def.purpose, metric:def.metric, auto:"", active:true,
+        steps:def.steps.map(([id,t,sl]) => ({ id, text:t, slot:sl })), log:[{ date:today(), v:1, text:"Starting version (from the Back to the Basics checklist)" }] });
+      changed = true;
+    });
+    if (changed) save();
+  }
+  const grade = n => n >= 90 ? "A" : n >= 80 ? "B" : n >= 70 ? "C" : n >= 60 ? "D" : "F";
+  const bbWeek = ws => (S.bb && S.bb[ws]) || {};
+  function bbSet(ws, patch){ S.bb[ws] = { ...bbWeek(ws), ...patch }; save(); }
+  function bbTotal(ws){ const sc = bbWeek(ws).scores || {}; const vals = Object.values(sc).filter(v => typeof v === "number"); return { total: vals.reduce((a,b)=>a+b,0), rated: vals.length }; }
+  const pctToScore = p => p >= 0.9 ? 4 : p >= 0.65 ? 3 : p >= 0.4 ? 2 : p > 0 ? 1 : 0;
+
+  // suggest a score from what the app already knows this week
+  function bbSuggest(n, ws){
+    const days = [0,1,2,3,4,5,6].map(i => addDays(ws, i)).filter(d => d <= today());
+    const worked = days.filter(d => { const s = statsFor(d); return s.contacts || s.hours || dayTouched(d); });
+    if (!worked.length) return null;
+    const basis = Math.max(5, worked.length);
+    const stepPct = id => { const done = worked.filter(d => (sdGet(d).checks||{})[id] === "done").length; return done / worked.length; };
+    const wk = (S.sw[ws]||{}).checks || {};
+    const T = targets();
+    switch (n) {
+      case 1: { const p = days.filter(d => statsFor(d).hours >= 8).length / basis; return { v:pctToScore(p), why:`${days.filter(d => statsFor(d).hours >= 8).length} day(s) with 8+ hours` }; }
+      case 3: { const k = days.filter(d => statsFor(d).demos >= 6).length; return { v:pctToScore(k / basis), why:`${k} day(s) with 6+ demos` }; }
+      case 24: { const k = worked.filter(d => (sdGet(d).checks||{})["bb-24"] === "done" || sdGet(d).firstMove || ((dayData(d).review||{}).carry||"").trim()).length; return { v:pctToScore(k / worked.length), why:`${k} of ${worked.length} day(s) with tomorrow's start set` }; }
+      case 5: case 15: case 25: return { v: wk["bb-"+n] ? 4 : 0, why: wk["bb-"+n] ? "checked off this week" : "not checked off this week" };
+      case 4: case 14: case 16: case 17: case 18: case 19: case 20: case 23: {
+        const p = stepPct("bb-"+n); return { v:pctToScore(p), why:`done ${Math.round(p*worked.length)} of ${worked.length} day(s)` };
+      }
+    }
+    return null;
+  }
+
+  function viewBasics(){
+    const ws = weekStart(today()), w = bbWeek(ws), sc = w.scores || {}, t = bbTotal(ws);
+    const prevWs = addDays(ws, -7), pt = bbTotal(prevWs);
+    const hist = Object.keys(S.bb||{}).filter(k => k < ws && bbTotal(k).rated).sort().slice(-6);
+    const scored = BASICS.filter(([n]) => typeof sc[n] === "number").sort((a,b) => sc[a[0]] - sc[b[0]]);
+    const lows = scored.filter(([n]) => sc[n] <= 2).slice(0,3);
+    const focusN = w.focus;
+    const focusItem = BASICS.find(([n]) => n === focusN);
+    const groups = Object.entries(BB_GROUPS).map(([g, label]) => {
+      const items = BASICS.filter(x => x[1] === g).sort((a,b) => a[0]-b[0]);
+      return `<div class="card"><h2>${esc(label)}</h2>${items.map(([n,,text]) => {
+        const sug = bbSuggest(n, ws);
+        return `<div style="padding:10px 0;border-bottom:1px solid var(--line)">
+          <div class="small"><b>${n}.</b> ${esc(text)}${focusN===n?' <span class="tag due">Focus</span>':""}</div>
+          <div class="pill" style="margin-top:6px">${[0,1,2,3,4].map(v => `<button data-act="bbscore" data-n="${n}" data-val="${v}" class="${sc[n]===v?"on":""} ${sc[n]===v&&v<=1?"bad":""}">${v}</button>`).join("")}</div>
+          ${sug ? `<div class="note">Your data suggests <b>${sug.v}</b> — ${esc(sug.why)}${typeof sc[n] !== "number" ? ` · <a href="#" data-act="bbuse" data-n="${n}" data-val="${sug.v}">use it</a>` : ""}</div>` : ""}
+        </div>`; }).join("")}</div>`;
+    }).join("");
+    return `
+      <div class="card"><h2>Back to the Basics <small>week of ${esc(niceDate(ws))}</small></h2>
+        <div class="score" style="grid-template-columns:1fr 1fr">
+          <div class="stat ${t.rated && t.total>=90?"hit":""}"><b>${t.rated ? t.total : "–"}</b><span>This week / 100${t.rated ? ` · ${grade(t.total)}` : ""}</span></div>
+          <div class="stat"><b>${pt.rated ? pt.total : "–"}</b><span>Last week${pt.rated ? ` · ${grade(pt.total)}` : ""}</span></div>
+        </div>
+        <div class="note">${t.rated}/25 basics rated. 4 = doing it 100% of the time, 2 = half the time, 0 = not doing it. Be brutally honest: score what you're really doing, not what you should be doing.</div>
+        ${hist.length ? `<div class="note">History: ${hist.map(k => `${esc(niceDate(k))} ${bbTotal(k).total}`).join(" · ")}</div>` : ""}
+        ${lows.length ? `<div class="insight"><b>Weakest basics:</b><br>${lows.map(([n,,tx]) => `${n}. ${esc(tx)} (${sc[n]})`).join("<br>")}</div>` : ""}
+      </div>
+      <div class="card"><h2>This week's focus basic</h2>
+        <p class="small muted" style="margin:0 0 6px">Pick the one basic to fix this week. It shows at the top of every morning check-in.</p>
+        <select data-bbfocus="1"><option value="">Choose a basic…</option>${BASICS.slice().sort((a,b)=>a[0]-b[0]).map(([n,,tx]) => `<option value="${n}" ${focusN===n?"selected":""}>${n}. ${esc(tx.length > 60 ? tx.slice(0,58)+"…" : tx)}</option>`).join("")}</select>
+        ${focusItem ? `<div class="insight">${esc(focusItem[2])}</div>` : ""}
+      </div>
+      ${groups}
+      <div class="card"><h2>How to use this</h2><div class="small" style="line-height:1.6">
+        <b>Daily:</b> the basics you can check off (goal card, testimonials & Eagles, attitude reading, car audio, pre-approach, referrals, night study, tomorrow's start) are in your morning and evening check-ins as the "Back to the Basics" system.<br>
+        <b>Sunday:</b> score all 25 here. Tap "use it" where your data suggests a score, but override it if the data is generous. Presentation basics (6–13, 21–22) can only be scored honestly by you.<br>
+        <b>Then:</b> pick your weakest basic as the focus for the week. Study it in your nightly technical study block.<br>
+        <b>Goal:</b> climb a grade at a time. A = 90+.</div></div>`;
+  }
+
   // ================= boot =================
   function renderAll(){
     renderToday(); renderBizList();
@@ -1376,6 +1507,7 @@
   if (!standalone && !S.settings.installTipDone && /iphone|ipad|ipod/i.test(navigator.userAgent)) $("installTip").classList.remove("hide");
   $("installDismiss").addEventListener("click", () => { $("installTip").classList.add("hide"); S.settings.installTipDone = true; save(); });
   seedSystems();
+  seedBasics();
   renderHeader(); renderAll();
   routeHash();
   window.addEventListener("hashchange", routeHash);
