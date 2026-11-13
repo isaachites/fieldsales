@@ -1,0 +1,963 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Field Sales">
+<meta name="theme-color" content="#14171c">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<title>Field Sales</title>
+<link rel="icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+<style>
+  :root{
+    --bg:#f4f5f7; --card:#ffffff; --ink:#14171c; --muted:#69707d; --line:#e3e6eb;
+    --accent:#1f5eff; --accent-ink:#ffffff; --good:#14915a; --warn:#c77700; --bad:#c23a3a;
+    --soft:#eef2ff; --pin-contact:#7b8494; --pin-demo:#d98a00; --pin-sale:#14915a; --pin-new:#1f5eff;
+    --radius:14px;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --bg:#0f1115; --card:#181b21; --ink:#eef0f4; --muted:#9aa1ad; --line:#2a2f38;
+      --accent:#5b8cff; --soft:#1c2433; --pin-contact:#9aa1ad; }
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",Inter,system-ui,sans-serif;font-size:15px;line-height:1.45}
+  body{padding:0 env(safe-area-inset-right) 0 env(safe-area-inset-left)}
+  header{position:sticky;top:0;z-index:500;background:var(--bg);padding:calc(10px + env(safe-area-inset-top)) 16px 8px;display:flex;align-items:flex-end;justify-content:space-between;gap:8px}
+  header h1{font-size:22px;margin:0;font-weight:700;letter-spacing:-.02em}
+  header .date{color:var(--muted);font-size:13px}
+  .clock{font-variant-numeric:tabular-nums;font-size:13px;color:var(--good);font-weight:600}
+  main{max-width:760px;margin:0 auto;padding:0 12px calc(90px + env(safe-area-inset-bottom))}
+  nav{position:fixed;left:0;right:0;bottom:0;z-index:600;background:var(--card);border-top:1px solid var(--line);display:flex;padding:6px 6px calc(6px + env(safe-area-inset-bottom))}
+  nav button{flex:1;background:none;border:0;color:var(--muted);font:inherit;font-size:11px;padding:6px 0;display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;border-radius:10px}
+  nav button svg{width:24px;height:24px}
+  nav button.on{color:var(--accent);font-weight:600}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin:10px 0}
+  .card h2{font-size:15px;margin:0 0 10px;font-weight:600;display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .card h2 small{font-weight:400;color:var(--muted);font-size:12px}
+  .muted{color:var(--muted)} .small{font-size:13px}
+  label{display:block;font-size:12px;color:var(--muted);margin:10px 0 4px;font-weight:500}
+  input,select,textarea{width:100%;font:inherit;font-size:16px;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 11px;-webkit-appearance:none;appearance:none}
+  input[type=date]{min-height:44px}
+  textarea{min-height:76px;resize:vertical}
+  input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:transparent}
+  .row{display:flex;gap:8px;align-items:center}
+  .row>*{flex:1}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 10px}
+  .btn{font:inherit;font-weight:600;border:0;border-radius:10px;padding:11px 14px;cursor:pointer;background:var(--accent);color:var(--accent-ink);white-space:nowrap;text-decoration:none;display:inline-block;text-align:center}
+  .btn.ghost{background:var(--soft);color:var(--accent)}
+  .btn.plain{background:transparent;color:var(--ink);border:1px solid var(--line)}
+  .btn.danger{background:transparent;color:var(--bad);border:1px solid var(--line)}
+  .btn:disabled{opacity:.5}
+  .btn.sm{padding:8px 11px;font-size:14px}
+  .score{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  .stat{background:var(--bg);border-radius:12px;padding:10px;text-align:center}
+  .stat b{display:block;font-size:26px;font-weight:700;letter-spacing:-.02em}
+  .stat span{font-size:12px;color:var(--muted)}
+  .stat.hit{outline:2px solid var(--good)}
+  .bar{height:6px;background:var(--line);border-radius:6px;overflow:hidden;margin-top:6px}
+  .bar i{display:block;height:100%;background:var(--accent)}
+  .stat.hit .bar i{background:var(--good)}
+  .verdict{margin-top:10px;font-weight:600;text-align:center;padding:8px;border-radius:10px}
+  .verdict.good{background:color-mix(in srgb,var(--good) 14%,transparent);color:var(--good)}
+  .verdict.pending{background:var(--bg);color:var(--muted)}
+  .list{display:flex;flex-direction:column}
+  .item{display:flex;align-items:center;gap:10px;padding:11px 2px;border-bottom:1px solid var(--line);cursor:pointer}
+  .item:last-child{border-bottom:0}
+  .item .main{flex:1;min-width:0}
+  .item .t{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .item .s{font-size:13px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .dot{width:10px;height:10px;border-radius:50%;flex:none;display:inline-block}
+  .tag{font-size:11px;font-weight:600;padding:3px 8px;border-radius:20px;background:var(--bg);color:var(--muted);white-space:nowrap}
+  .tag.due{background:color-mix(in srgb,var(--warn) 16%,transparent);color:var(--warn)}
+  .tag.sale{background:color-mix(in srgb,var(--good) 16%,transparent);color:var(--good)}
+  .tag.demo{background:color-mix(in srgb,var(--pin-demo) 16%,transparent);color:var(--pin-demo)}
+  .chk{width:24px;height:24px;flex:none;accent-color:var(--accent);-webkit-appearance:checkbox;appearance:auto}
+  .note{font-size:12px;color:var(--muted);margin-top:6px}
+  .empty{text-align:center;color:var(--muted);padding:22px 10px;font-size:14px}
+  .seg{display:flex;background:var(--bg);border-radius:10px;padding:3px;gap:3px}
+  .seg button{flex:1;border:0;background:none;font:inherit;font-size:13px;padding:8px 4px;border-radius:8px;color:var(--muted);cursor:pointer}
+  .seg button.on{background:var(--card);color:var(--ink);font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.08)}
+  .sheet-bg{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;display:none;align-items:flex-end;justify-content:center}
+  .sheet-bg.open{display:flex}
+  .sheet{background:var(--card);width:100%;max-width:760px;max-height:94vh;overflow:auto;-webkit-overflow-scrolling:touch;border-radius:18px 18px 0 0;padding:16px 16px calc(24px + env(safe-area-inset-bottom))}
+  .sheet .top{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;gap:10px}
+  .sheet h3{margin:0;font-size:18px}
+  .x{background:var(--bg);border:0;border-radius:50%;width:34px;height:34px;font-size:20px;cursor:pointer;color:var(--muted);flex:none}
+  .visits{font-size:13px;margin-top:6px}
+  .visits div{padding:7px 0;border-bottom:1px dashed var(--line)}
+  .actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+  .box{background:var(--bg);border-radius:12px;padding:12px;margin-top:12px}
+  #map{height:62vh;min-height:340px;border-radius:12px;overflow:hidden;z-index:1}
+  .leaflet-popup-content{font-family:inherit;font-size:14px}
+  .legend{display:flex;flex-wrap:wrap;gap:12px;font-size:12px;color:var(--muted);margin-top:8px}
+  .legend span{display:flex;align-items:center;gap:5px}
+  .num-pin{background:var(--accent);color:#fff;border:2px solid #fff;border-radius:50%;width:24px!important;height:24px!important;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;box-shadow:0 1px 4px rgba(0,0,0,.3)}
+  .toast{position:fixed;left:50%;bottom:calc(86px + env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 14px;border-radius:10px;font-size:14px;z-index:2000;opacity:0;transition:opacity .2s;pointer-events:none;max-width:90vw;text-align:center}
+  .toast.show{opacity:1}
+  .hide{display:none!important}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  td,th{padding:7px 4px;border-bottom:1px solid var(--line);text-align:left}
+  th{font-size:12px;color:var(--muted);font-weight:500}
+  td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+  .insight{padding:10px 12px;border-radius:10px;background:var(--soft);margin-top:8px;font-size:14px}
+  .result{padding:10px;border:1px solid var(--line);border-radius:10px;margin-top:8px;cursor:pointer}
+  .result b{display:block}
+  .install{background:var(--soft);border-radius:12px;padding:12px;font-size:14px;margin:10px 0}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <div class="date" id="hdrDate"></div>
+    <h1 id="hdrTitle">Today</h1>
+  </div>
+  <div class="clock" id="hdrClock"></div>
+</header>
+
+<main>
+  <div class="install hide" id="installTip">
+    <b>Install on your iPhone:</b> tap the Share button in Safari, then <b>Add to Home Screen</b>. Open it from the home screen icon from then on.
+    <div class="actions"><button class="btn sm ghost" id="installDismiss">Got it</button></div>
+  </div>
+
+  <!-- TODAY -->
+  <section id="tab-today">
+    <div class="card">
+      <h2>Scoreboard <small id="scoreHint"></small></h2>
+      <div class="score" id="score"></div>
+      <div class="verdict pending" id="verdict"></div>
+      <div class="row" style="margin-top:12px;align-items:flex-end">
+        <button class="btn" id="clockBtn">Start day</button>
+        <div>
+          <label style="margin-top:0">Hours (edit if needed)</label>
+          <input id="hoursInput" type="number" step="0.25" min="0" inputmode="decimal">
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Morning game plan <small id="planSaved"></small></h2>
+      <div class="insight hide" id="carryIn"></div>
+      <label>Towns today</label>
+      <input id="planTowns" placeholder="e.g. Boone, then west Ames">
+      <label>Focus / what I'm working on</label>
+      <textarea id="planFocus" placeholder="e.g. Downtown Boone strip, 3 follow-ups before lunch"></textarea>
+      <label>Today's route <span class="muted">(check stops on the Businesses tab)</span></label>
+      <div class="list" id="routeList"></div>
+      <div class="actions">
+        <button class="btn plain sm" id="routeBtn">Open route in Google Maps</button>
+        <button class="btn plain sm" id="routeAppleBtn">Apple Maps (1st stop)</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Follow-ups due <small id="dueCount"></small></h2>
+      <div class="list" id="dueList"></div>
+    </div>
+
+    <div class="card">
+      <h2>Evening review <small id="reviewSaved"></small></h2>
+      <label>What went well</label>
+      <textarea id="revWins"></textarea>
+      <label>What didn't / what to fix</label>
+      <textarea id="revMisses"></textarea>
+      <label>Carry over to tomorrow</label>
+      <textarea id="revCarry"></textarea>
+    </div>
+  </section>
+
+  <!-- BUSINESSES -->
+  <section id="tab-biz" class="hide">
+    <div class="card">
+      <h2>Add a business</h2>
+      <div class="grid2">
+        <div><label>Business name</label><input id="addName" placeholder="C&K Heating" autocomplete="off"></div>
+        <div><label>Town</label><input id="addTown" placeholder="Ames" list="townList" autocomplete="off"></div>
+      </div>
+      <div class="actions">
+        <button class="btn" id="addBtn">Look up address</button>
+        <button class="btn plain" id="addManualBtn">Add without lookup</button>
+      </div>
+      <div id="lookupResults"></div>
+      <div class="note" id="addNote"></div>
+    </div>
+    <div class="card">
+      <h2>Businesses <small id="bizCount"></small></h2>
+      <input id="bizSearch" placeholder="Search name, town, type, notes" autocomplete="off">
+      <div class="seg" id="bizFilter" style="margin-top:8px">
+        <button data-f="all" class="on">All</button>
+        <button data-f="due">Due</button>
+        <button data-f="new">New</button>
+        <button data-f="demo">Demo</button>
+        <button data-f="sale">Sale</button>
+      </div>
+      <div class="note">Check the box to add a stop to today's route.</div>
+      <div class="list" id="bizList"></div>
+    </div>
+  </section>
+
+  <!-- MAP -->
+  <section id="tab-map" class="hide">
+    <div class="card">
+      <div class="row" style="margin-bottom:8px">
+        <select id="mapTown"><option value="">All towns</option></select>
+        <button class="btn plain sm" id="mapRouteBtn" style="flex:none">Today's route</button>
+      </div>
+      <div id="map"></div>
+      <div class="legend">
+        <span><i class="dot" style="background:var(--pin-new)"></i>Not visited</span>
+        <span><i class="dot" style="background:var(--pin-contact)"></i>Contact</span>
+        <span><i class="dot" style="background:var(--pin-demo)"></i>Demo</span>
+        <span><i class="dot" style="background:var(--pin-sale)"></i>Sale</span>
+        <span><i class="dot" style="background:var(--accent);outline:2px solid #fff"></i>Route stop</span>
+      </div>
+      <div class="note" id="mapNote"></div>
+    </div>
+  </section>
+
+  <!-- WEEK -->
+  <section id="tab-week" class="hide">
+    <div class="card">
+      <h2>This week <small id="weekLabel"></small></h2>
+      <div class="score" id="weekScore"></div>
+      <div class="note" id="weekDays"></div>
+    </div>
+    <div class="card">
+      <h2>Weekly review</h2>
+      <div id="insights"></div>
+      <h2 style="margin-top:16px">By town <small>last 7 days</small></h2>
+      <div id="townTable"></div>
+      <h2 style="margin-top:16px">Follow-ups next 7 days</h2>
+      <div id="weekDue"></div>
+    </div>
+    <div class="card">
+      <h2>My weekly B2B game plan <small id="gpSaved"></small></h2>
+      <textarea id="gamePlan" style="min-height:140px" placeholder="Paste your weekly B2B sales game plan here. It stays here for reference every week."></textarea>
+    </div>
+    <div class="card">
+      <h2>Next week's plan <small id="nwSaved"></small></h2>
+      <div class="note" id="nwLabel" style="margin-top:0"></div>
+      <textarea id="nextWeek" style="min-height:150px" placeholder="Mon: …&#10;Tue: …&#10;Wed: …&#10;Thu: …&#10;Fri: …"></textarea>
+      <div class="actions"><button class="btn ghost sm" id="nwDraft">Draft from my numbers</button></div>
+    </div>
+    <div class="card">
+      <h2>Past weekly plans</h2>
+      <div class="list" id="weekList"></div>
+    </div>
+    <div class="card">
+      <h2>Settings</h2>
+      <div class="grid2">
+        <div><label>Contacts target / day</label><input id="tContacts" type="number" min="0" inputmode="numeric"></div>
+        <div><label>Demos target / day</label><input id="tDemos" type="number" min="0" inputmode="numeric"></div>
+        <div><label>Hours target / day</label><input id="tHours" type="number" min="0" step="0.5" inputmode="decimal"></div>
+        <div><label>Wins needed (of 3)</label><input id="tWins" type="number" min="1" max="3" inputmode="numeric"></div>
+      </div>
+      <label>My name (for messages)</label>
+      <input id="sName" placeholder="Isaac">
+      <div class="note" id="setSaved"></div>
+    </div>
+    <div class="card">
+      <h2>Backup</h2>
+      <p class="small muted" style="margin:0">Your data lives on this phone only. Back it up every Friday so nothing is lost if you switch phones or clear Safari.</p>
+      <div class="actions">
+        <button class="btn" id="exportBtn">Back up now</button>
+        <label class="btn plain" style="margin:0;font-size:15px;color:var(--ink)">Restore from backup<input type="file" id="importFile" accept=".json,application/json" class="hide"></label>
+      </div>
+      <div class="note" id="backupNote"></div>
+    </div>
+  </section>
+</main>
+
+<datalist id="townList"></datalist>
+
+<nav>
+  <button data-tab="today" class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="17" rx="3"/><path d="M3 9h18M8 2v4M16 2v4"/></svg>Today</button>
+  <button data-tab="biz"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M5 21V8l7-5 7 5v13M9 21v-6h6v6"/></svg>Businesses</button>
+  <button data-tab="map"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>Map</button>
+  <button data-tab="week"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19V5M4 19h16M8 15l4-4 3 3 5-6"/></svg>Week</button>
+</nav>
+
+<!-- Business detail sheet -->
+<div class="sheet-bg" id="sheetBg">
+  <div class="sheet" id="sheet">
+    <div class="top"><h3 id="dTitle"></h3><button class="x" id="dClose" aria-label="Close">×</button></div>
+    <div class="muted small" id="dSub"></div>
+    <div class="actions">
+      <button class="btn sm" id="dLog">Log a visit</button>
+      <button class="btn ghost sm" id="dFollow">Follow-up message</button>
+      <a class="btn plain sm" id="dCall">Call</a>
+      <a class="btn plain sm" id="dMaps" target="_blank" rel="noopener">Directions</a>
+    </div>
+
+    <div id="dLogBox" class="box hide">
+      <b>Log a visit</b>
+      <div class="grid2">
+        <div><label>Date</label><input id="vDate" type="date"></div>
+        <div><label>Outcome</label><select id="vOutcome"><option value="contact">Contact</option><option value="demo">Demo</option><option value="sale">Sale</option></select></div>
+      </div>
+      <label>Quick note (what they said, biggest headache)</label>
+      <textarea id="vNote"></textarea>
+      <div class="grid2">
+        <div><label>Next step</label><input id="vNext" placeholder="Drop off brochure"></div>
+        <div><label>Follow-up date</label><input id="vFollow" type="date"></div>
+      </div>
+      <div class="actions"><button class="btn" id="vSave">Save visit</button><button class="btn plain" id="vCancel">Cancel</button></div>
+    </div>
+
+    <div id="dFollowBox" class="box hide">
+      <div class="seg" id="tplSeg">
+        <button data-t="contact" class="on">After contact</button>
+        <button data-t="demo">After demo</button>
+        <button data-t="checkin">Check-in</button>
+      </div>
+      <div class="seg" id="chanSeg" style="margin-top:6px">
+        <button data-c="sms" class="on">Text</button>
+        <button data-c="email">Email</button>
+      </div>
+      <label id="subjLabel" class="hide">Subject</label>
+      <input id="msgSubj" class="hide">
+      <label>Message — edit before sending</label>
+      <textarea id="msgBody" style="min-height:130px"></textarea>
+      <div class="actions">
+        <a class="btn" id="msgSend">Open in Messages</a>
+        <button class="btn plain" id="msgCopy">Copy</button>
+      </div>
+    </div>
+
+    <label>Owner / contact</label><input id="fOwner" autocomplete="off">
+    <div class="grid2">
+      <div><label>Phone</label><input id="fPhone" inputmode="tel" autocomplete="off"></div>
+      <div><label>Email</label><input id="fEmail" inputmode="email" autocomplete="off"></div>
+    </div>
+    <label>Address</label>
+    <div class="row"><input id="fAddress" autocomplete="off"><button class="btn plain sm" id="dPlace" style="flex:none">Place on map</button></div>
+    <div class="grid2">
+      <div><label>Town</label><input id="fTown" list="townList" autocomplete="off"></div>
+      <div><label>Business type</label><input id="fType" placeholder="Trades, retail…" autocomplete="off"></div>
+    </div>
+    <label>Biggest headache / notes</label><textarea id="fNotes"></textarea>
+    <div class="grid2">
+      <div><label>Next step</label><input id="fNext" autocomplete="off"></div>
+      <div><label>Follow-up date</label><input id="fFollow" type="date"></div>
+    </div>
+    <div class="note" id="dSaved"></div>
+
+    <h2 style="font-size:15px;margin:18px 0 4px">Visit history</h2>
+    <div class="visits" id="dVisits"></div>
+    <div class="actions" style="margin-top:18px">
+      <a class="btn plain sm" id="dGoogle" target="_blank" rel="noopener">Check on Google</a>
+      <button class="btn danger sm" id="dDelete">Delete business</button>
+    </div>
+  </div>
+</div>
+
+<!-- confirm dialog -->
+<div class="sheet-bg" id="confirmBg" style="align-items:center">
+  <div class="sheet" style="border-radius:16px;max-width:380px;margin:16px">
+    <h3 id="confirmText" style="margin:0 0 14px;font-size:16px"></h3>
+    <div class="actions"><button class="btn danger" id="confirmYes">Delete</button><button class="btn plain" id="confirmNo">Cancel</button></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="vendor/leaflet/leaflet.js"></script>
+<script>
+(() => {
+  // ================= helpers =================
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  const pad = n => String(n).padStart(2, "0");
+  const ymd = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  const today = () => ymd(new Date());
+  const parseYmd = s => { const [y,m,d] = s.split("-").map(Number); return new Date(y, m-1, d); };
+  const addDays = (s, n) => { const d = parseYmd(s); d.setDate(d.getDate()+n); return ymd(d); };
+  const weekStart = s => { const d = parseYmd(s); const dow = (d.getDay()+6)%7; d.setDate(d.getDate()-dow); return ymd(d); };
+  const niceDate = s => s ? parseYmd(s).toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"}) : "";
+  const dayName = s => s ? parseYmd(s).toLocaleDateString(undefined,{weekday:"long"}) : "";
+  const newId = () => "b" + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+  const num = (v, d) => { const n = parseFloat(v); return isFinite(n) ? n : d; };
+  const toast = msg => { const t = $("toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(toast._t); toast._t = setTimeout(()=>t.classList.remove("show"), 2400); };
+  const now = fn => fn;
+  const debounce = (fn, ms) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(()=>fn(...a), ms); }; };
+  const digits = s => String(s||"").replace(/[^\d+]/g, "");
+
+  const TOWNS = {
+    "ames":[42.0308,-93.6319],"boone":[42.0597,-93.8802],"ankeny":[41.7318,-93.6001],"nevada":[42.0228,-93.4524],
+    "story city":[42.1872,-93.5958],"huxley":[41.8964,-93.6005],"ogden":[42.0391,-94.0277],"gilbert":[42.1069,-93.6497],
+    "slater":[41.8778,-93.6858],"madrid":[41.8767,-93.8233],"jefferson":[42.0155,-94.3772],"marshalltown":[42.0494,-92.9080],
+    "kelley":[41.9497,-93.6633],"roland":[42.1661,-93.5016],"zearing":[42.1600,-93.2966],"colo":[42.0161,-93.3172],
+    "polk city":[41.7714,-93.7130],"perry":[41.8386,-94.1072],"webster city":[42.4697,-93.8163],"des moines":[41.5868,-93.6250]
+  };
+
+  // ================= storage (on this phone) =================
+  const KEY = "fieldsales.v1";
+  const blank = () => ({ biz:[], days:{}, weeks:{}, settings:{} });
+  let S;
+  try { S = Object.assign(blank(), JSON.parse(localStorage.getItem(KEY) || "{}")); } catch { S = blank(); }
+  function save(){
+    try { localStorage.setItem(KEY, JSON.stringify(S)); }
+    catch (e) { toast("Phone storage is full — back up and delete old businesses"); }
+  }
+  if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(()=>{});
+
+  const UI = { tab:"today", bizFilter:"all", openId:null, tpl:"contact", chan:"sms", map:null, layer:null, mapTown:"" };
+  const DEF = { contacts:20, demos:6, hours:8, wins:2 };
+  const targets = () => ({
+    contacts: num(S.settings.tContacts, DEF.contacts), demos: num(S.settings.tDemos, DEF.demos),
+    hours: num(S.settings.tHours, DEF.hours), wins: num(S.settings.tWins, DEF.wins)
+  });
+  const dayData = d => S.days[d] || { date:d };
+  function saveDay(d, patch){ S.days[d] = { ...dayData(d), ...patch, date:d }; save(); }
+  function saveBiz(b){ const i = S.biz.findIndex(x => x.id === b.id); if (i >= 0) S.biz[i] = b; else S.biz.push(b); save(); }
+
+  function visitsOn(d){ const out = []; S.biz.forEach(b => (b.visits||[]).forEach(v => { if (v.date === d) out.push({b, v}); })); return out; }
+  function statsFor(d){
+    const vs = visitsOn(d);
+    return {
+      contacts: vs.length,
+      demos: vs.filter(x => x.v.outcome !== "contact").length,
+      sales: vs.filter(x => x.v.outcome === "sale").length,
+      hours: num(dayData(d).hours, 0),
+      towns: [...new Set(vs.map(x => (x.b.town||"").trim()).filter(Boolean))]
+    };
+  }
+  function liveHours(d){ const day = dayData(d); let h = num(day.hours, 0); if (day.startedAt) h += (Date.now() - day.startedAt)/3600000; return h; }
+  function lastOutcome(b){
+    const vs = b.visits || [];
+    if (!vs.length) return "new";
+    if (vs.some(v=>v.outcome==="sale")) return "sale";
+    if (vs.some(v=>v.outcome==="demo")) return "demo";
+    return "contact";
+  }
+  const isDue = b => b.followUp && b.followUp <= today();
+  const myName = () => (S.settings.sName || "").trim();
+  const nextWorkday = s => { let d = s; while ([0,6].includes(parseYmd(d).getDay())) d = addDays(d, 1); return d; };
+
+  // ================= tabs =================
+  function renderHeader(){
+    const titles = { today:"Today", biz:"Businesses", map:"Map", week:"Week" };
+    $("hdrTitle").textContent = titles[UI.tab];
+    $("hdrDate").textContent = new Date().toLocaleDateString(undefined,{weekday:"long",month:"long",day:"numeric"});
+  }
+  function setTab(t){
+    UI.tab = t;
+    document.querySelectorAll("nav button").forEach(b => b.classList.toggle("on", b.dataset.tab === t));
+    ["today","biz","map","week"].forEach(x => $("tab-"+x).classList.toggle("hide", x !== t));
+    renderHeader();
+    if (t === "map") renderMap();
+    if (t === "week") renderWeek();
+    if (t === "today") renderToday();
+    window.scrollTo(0,0);
+  }
+  document.querySelectorAll("nav button").forEach(b => b.addEventListener("click", () => setTab(b.dataset.tab)));
+
+  // ================= TODAY =================
+  function statBox(label, val, target, fmt = v => v){
+    const pct = target > 0 ? Math.min(100, (val/target)*100) : 0;
+    const hit = target > 0 && val >= target;
+    return `<div class="stat ${hit?"hit":""}"><b>${esc(fmt(val))}</b><span>${esc(label)} / ${esc(fmt(target))}</span><div class="bar"><i style="width:${pct}%"></i></div></div>`;
+  }
+  const fmtH = v => (Math.floor(v*4)/4).toString();
+  function renderScore(){
+    const d = today(), st = statsFor(d), T = targets(), lh = liveHours(d), day = dayData(d);
+    $("score").innerHTML = statBox("Contacts", st.contacts, T.contacts) + statBox("Demos", st.demos, T.demos) + statBox("Hours", lh, T.hours, fmtH);
+    const hits = [st.contacts >= T.contacts, st.demos >= T.demos, lh >= T.hours].filter(Boolean).length;
+    $("scoreHint").textContent = `${T.wins} of 3 = a win`;
+    const v = $("verdict");
+    if (hits >= T.wins) { v.className = "verdict good"; v.textContent = `Winning day — ${hits} of 3 targets hit`; }
+    else { v.className = "verdict pending"; v.textContent = `${hits} of 3 hit · need ${T.wins}`; }
+    $("clockBtn").textContent = day.startedAt ? "End shift" : (st.hours > 0 ? "Resume clock" : "Start day");
+    if (document.activeElement !== $("hoursInput")) $("hoursInput").value = st.hours ? Math.round(st.hours*100)/100 : "";
+    $("hdrClock").textContent = day.startedAt ? `● ${fmtH(lh)}h` : "";
+  }
+  function renderPlan(){
+    const d = today(), day = dayData(d), plan = day.plan || {};
+    if (document.activeElement !== $("planTowns")) $("planTowns").value = plan.towns || "";
+    if (document.activeElement !== $("planFocus")) $("planFocus").value = plan.focus || "";
+    const carry = ((dayData(addDays(d,-1)).review || {}).carry || "").trim();
+    $("carryIn").classList.toggle("hide", !carry);
+    $("carryIn").innerHTML = carry ? `<b>Carried over from yesterday:</b><br>${esc(carry).replace(/\n/g,"<br>")}` : "";
+    const stops = (plan.stops||[]).map(id => S.biz.find(b => b.id === id)).filter(Boolean);
+    $("routeList").innerHTML = stops.length
+      ? stops.map((b,i) => `<div class="item" data-open="${esc(b.id)}"><span class="tag">${i+1}</span><div class="main"><div class="t">${esc(b.name)}</div><div class="s">${esc(b.address || b.town || "")}</div></div></div>`).join("")
+      : `<div class="small muted" style="padding:4px 0">No stops yet.</div>`;
+    const rev = day.review || {};
+    [["revWins","wins"],["revMisses","misses"],["revCarry","carry"]].forEach(([id,k]) => { if (document.activeElement !== $(id)) $(id).value = rev[k] || ""; });
+  }
+  function renderDue(){
+    const due = S.biz.filter(isDue).sort((a,b)=>a.followUp<b.followUp?-1:1);
+    $("dueCount").textContent = due.length ? String(due.length) : "";
+    $("dueList").innerHTML = due.length
+      ? due.map(b => `<div class="item" data-open="${esc(b.id)}"><div class="main"><div class="t">${esc(b.name)}</div><div class="s">${esc(b.next || "Follow up")} · ${esc(b.town||"")}</div></div><span class="tag due">${b.followUp === today() ? "Today" : esc(niceDate(b.followUp))}</span></div>`).join("")
+      : `<div class="empty">Nothing due.</div>`;
+  }
+  function renderToday(){ renderScore(); renderPlan(); renderDue(); }
+
+  $("clockBtn").addEventListener("click", () => {
+    const d = today(), day = dayData(d);
+    if (day.startedAt) {
+      const add = (Date.now() - day.startedAt)/3600000;
+      saveDay(d, { startedAt:null, hours: Math.round((num(day.hours,0)+add)*100)/100 });
+      toast("Shift ended");
+    } else { saveDay(d, { startedAt: Date.now() }); toast("Clock started"); }
+    renderScore();
+  });
+  $("hoursInput").addEventListener("change", e => { const v = parseFloat(e.target.value); saveDay(today(), { hours: isFinite(v) ? v : 0 }); renderScore(); });
+  setInterval(() => { if (dayData(today()).startedAt) renderScore(); }, 30000);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) { renderHeader(); if (UI.tab === "today") renderToday(); } });
+
+  const savePlan = now(() => { const d = today(); saveDay(d, { plan:{ ...(dayData(d).plan||{}), towns:$("planTowns").value, focus:$("planFocus").value } }); $("planSaved").textContent = "saved"; }, 500);
+  $("planTowns").addEventListener("input", savePlan); $("planFocus").addEventListener("input", savePlan);
+  const saveReview = now(() => { saveDay(today(), { review:{ wins:$("revWins").value, misses:$("revMisses").value, carry:$("revCarry").value } }); $("reviewSaved").textContent = "saved"; }, 500);
+  ["revWins","revMisses","revCarry"].forEach(id => $(id).addEventListener("input", saveReview));
+
+  // routes
+  const stopsToday = () => ((dayData(today()).plan||{}).stops||[]).map(id => S.biz.find(b => b.id === id)).filter(Boolean);
+  const placeQ = b => b.lat != null ? `${b.lat},${b.lng}` : (b.address || `${b.name}, ${b.town||""}, IA`);
+  function openRoute(){
+    const stops = stopsToday();
+    if (!stops.length) { toast("Check some stops on the Businesses tab first"); return; }
+    const q = b => encodeURIComponent(placeQ(b));
+    const dest = stops[stops.length-1];
+    const way = stops.slice(0,-1).slice(0,9).map(q).join("%7C");
+    location.href = `https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=${q(dest)}${way?`&waypoints=${way}`:""}`;
+  }
+  $("routeBtn").addEventListener("click", openRoute);
+  $("mapRouteBtn").addEventListener("click", openRoute);
+  $("routeAppleBtn").addEventListener("click", () => {
+    const s = stopsToday()[0]; if (!s) { toast("No stops yet"); return; }
+    location.href = `https://maps.apple.com/?daddr=${encodeURIComponent(placeQ(s))}`;
+  });
+  function toggleStop(id, on){
+    const d = today(), plan = { ...(dayData(d).plan||{}) };
+    plan.stops = (plan.stops||[]).filter(x => x !== id);
+    if (on) plan.stops.push(id);
+    saveDay(d, { plan }); renderPlan();
+  }
+
+  // ================= BUSINESSES =================
+  const COLORS = { new:"var(--pin-new)", contact:"var(--pin-contact)", demo:"var(--pin-demo)", sale:"var(--pin-sale)" };
+  function renderBizList(){
+    const q = $("bizSearch").value.trim().toLowerCase();
+    const stops = new Set((dayData(today()).plan||{}).stops || []);
+    let list = S.biz.slice();
+    if (q) list = list.filter(b => [b.name,b.town,b.type,b.notes,b.owner,b.address].join(" ").toLowerCase().includes(q));
+    const f = UI.bizFilter;
+    if (f === "due") list = list.filter(isDue); else if (f !== "all") list = list.filter(b => lastOutcome(b) === f);
+    list.sort((a,b) => (isDue(b)-isDue(a)) || (a.town||"").localeCompare(b.town||"") || a.name.localeCompare(b.name));
+    $("bizCount").textContent = `${S.biz.length} total`;
+    $("bizList").innerHTML = list.length ? list.map(b => {
+      const lo = lastOutcome(b);
+      const tag = isDue(b) ? `<span class="tag due">Due</span>` : lo === "sale" ? `<span class="tag sale">Sale</span>` : lo === "demo" ? `<span class="tag demo">Demo</span>` : "";
+      return `<div class="item" data-open="${esc(b.id)}">
+        <input type="checkbox" class="chk" data-stop="${esc(b.id)}" ${stops.has(b.id)?"checked":""} aria-label="Add to today's route">
+        <i class="dot" style="background:${COLORS[lo]}"></i>
+        <div class="main"><div class="t">${esc(b.name)}</div><div class="s">${esc([b.town, b.type].filter(Boolean).join(" · "))}${b.notes?` — ${esc(b.notes)}`:""}</div></div>${tag}</div>`;
+    }).join("") : `<div class="empty">${S.biz.length ? "No matches." : "No businesses yet. Add your first one above."}</div>`;
+    const towns = [...new Set([...S.biz.map(b => (b.town||"").trim()).filter(Boolean), "Ames", "Boone"])].sort();
+    $("townList").innerHTML = towns.map(t => `<option value="${esc(t)}">`).join("");
+  }
+  $("bizSearch").addEventListener("input", renderBizList);
+  $("bizFilter").addEventListener("click", e => {
+    const b = e.target.closest("button"); if (!b) return;
+    UI.bizFilter = b.dataset.f; [...$("bizFilter").children].forEach(x => x.classList.toggle("on", x === b)); renderBizList();
+  });
+  document.addEventListener("click", e => {
+    const chk = e.target.closest("[data-stop]");
+    if (chk) { e.stopPropagation(); toggleStop(chk.dataset.stop, chk.checked); return; }
+    const op = e.target.closest("[data-open]");
+    if (op) openDetail(op.dataset.open);
+  });
+
+  // ---- free address lookup (OpenStreetMap / Nominatim) ----
+  function fmtAddr(r){
+    const a = r.address || {};
+    const town = a.city || a.town || a.village || a.hamlet || "";
+    const street = [a.house_number, a.road].filter(Boolean).join(" ");
+    const st = a.state === "Iowa" ? "IA" : (a.state || "");
+    return [street, town, [st, a.postcode].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+  }
+  async function nominatim(params){
+    const u = "https://nominatim.openstreetmap.org/search?" + new URLSearchParams({ format:"jsonv2", addressdetails:"1", extratags:"1", countrycodes:"us", limit:"6", ...params });
+    const r = await fetch(u, { headers:{ "Accept-Language":"en" } });
+    if (!r.ok) throw new Error("lookup " + r.status);
+    return r.json();
+  }
+  async function findBusiness(name, town){
+    const t = TOWNS[(town||"").trim().toLowerCase()];
+    let res = [];
+    if (t) {
+      const d = 0.12;
+      res = await nominatim({ q:name, viewbox:`${t[1]-d},${t[0]+d},${t[1]+d},${t[0]-d}`, bounded:"1" }).catch(()=>[]);
+    }
+    if (!res.length) res = await nominatim({ q:`${name}, ${town||""}, Iowa` }).catch(()=>[]);
+    return res;
+  }
+  async function geocodeAddress(addr){
+    const res = await nominatim({ q: /iowa|\bIA\b/i.test(addr) ? addr : addr + ", Iowa", limit:"1" }).catch(()=>[]);
+    return res[0] || null;
+  }
+
+  function makeBiz(name, town){
+    return { id:newId(), name, town, owner:"", phone:"", email:"", address:"", type:"", notes:"", next:"", followUp:"", visits:[], lat:null, lng:null, created:Date.now() };
+  }
+  function addFromResult(name, town, r){
+    const b = makeBiz(name, town);
+    if (r) {
+      b.address = fmtAddr(r) || r.display_name || "";
+      b.lat = parseFloat(r.lat); b.lng = parseFloat(r.lon);
+      const x = r.extratags || {};
+      b.phone = x.phone || x["contact:phone"] || "";
+      b.email = x.email || x["contact:email"] || "";
+      if (r.name && r.name.length > 1) b.name = r.name;
+      const a = r.address || {};
+      b.town = town || a.city || a.town || a.village || "";
+      b.type = (r.type && r.type !== "yes") ? r.type.replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase()) : "";
+    }
+    saveBiz(b);
+    $("lookupResults").innerHTML = ""; $("addName").value = "";
+    renderAll(); openDetail(b.id);
+    return b;
+  }
+  $("addBtn").addEventListener("click", async () => {
+    const name = $("addName").value.trim(), town = $("addTown").value.trim();
+    if (!name) { toast("Enter a business name"); return; }
+    $("addBtn").disabled = true; $("addNote").textContent = "Looking it up…"; $("lookupResults").innerHTML = "";
+    let res = [];
+    try { res = await findBusiness(name, town); } catch {}
+    $("addBtn").disabled = false;
+    if (!res.length) {
+      $("addNote").innerHTML = `No match found in the free map data. Tap <b>Add without lookup</b>, then use "Check on Google" to grab the address and paste it.`;
+      return;
+    }
+    $("addNote").textContent = "Tap the right one:";
+    $("lookupResults").innerHTML = res.map((r,i) => `<div class="result" data-pick="${i}"><b>${esc(r.name || name)}</b><span class="small muted">${esc(fmtAddr(r) || r.display_name)}</span></div>`).join("")
+      + `<div class="result" data-pick="-1"><b>None of these</b><span class="small muted">Add it and fill in the address myself</span></div>`;
+    $("lookupResults").onclick = e => {
+      const p = e.target.closest("[data-pick]"); if (!p) return;
+      const i = +p.dataset.pick;
+      addFromResult(name, town, i >= 0 ? res[i] : null);
+      $("addNote").textContent = i >= 0 ? "Added." : "Added — fill in the address below.";
+    };
+  });
+  $("addManualBtn").addEventListener("click", () => {
+    const name = $("addName").value.trim(), town = $("addTown").value.trim();
+    if (!name) { toast("Enter a business name"); return; }
+    addFromResult(name, town, null); $("addNote").textContent = "Added.";
+  });
+  $("addName").addEventListener("keydown", e => { if (e.key === "Enter") $("addTown").focus(); });
+  $("addTown").addEventListener("keydown", e => { if (e.key === "Enter") $("addBtn").click(); });
+
+  // ================= DETAIL SHEET =================
+  const FIELDS = { fOwner:"owner", fPhone:"phone", fEmail:"email", fAddress:"address", fTown:"town", fType:"type", fNotes:"notes", fNext:"next", fFollow:"followUp" };
+  const cur = () => S.biz.find(b => b.id === UI.openId);
+  function openDetail(id){
+    UI.openId = id; const b = cur(); if (!b) return;
+    $("dLogBox").classList.add("hide"); $("dFollowBox").classList.add("hide"); $("dSaved").textContent = "";
+    fillDetail(b, true);
+    $("sheetBg").classList.add("open"); $("sheet").scrollTop = 0;
+  }
+  function fillDetail(b, force){
+    $("dTitle").textContent = b.name;
+    const lo = lastOutcome(b);
+    $("dSub").textContent = [b.type, b.town, lo === "new" ? "Not visited yet" : `Best outcome: ${lo}`].filter(Boolean).join(" · ");
+    Object.entries(FIELDS).forEach(([el, k]) => { if (force || document.activeElement !== $(el)) $(el).value = b[k] || ""; });
+    $("dMaps").href = `https://maps.apple.com/?daddr=${encodeURIComponent(placeQ(b))}`;
+    $("dGoogle").href = `https://www.google.com/search?q=${encodeURIComponent(`${b.name} ${b.town||""} Iowa`)}`;
+    const ph = digits(b.phone);
+    $("dCall").classList.toggle("hide", !ph); $("dCall").href = ph ? `tel:${ph}` : "#";
+    const vs = (b.visits||[]).slice().sort((a,c)=>a.date<c.date?1:-1);
+    $("dVisits").innerHTML = vs.length ? vs.map(v => `<div><b>${esc(niceDate(v.date))}</b> · ${esc(v.outcome)}${v.note?` — ${esc(v.note)}`:""}${v.next?`<br><span class="muted">Next: ${esc(v.next)}</span>`:""}</div>`).join("") : `<span class="muted">No visits logged.</span>`;
+  }
+  function closeDetail(){ $("sheetBg").classList.remove("open"); UI.openId = null; renderAll(); }
+  $("dClose").addEventListener("click", closeDetail);
+  $("sheetBg").addEventListener("click", e => { if (e.target === $("sheetBg")) closeDetail(); });
+
+  function saveFields(){
+    const b = cur(); if (!b) return;
+    const nb = { ...b }; Object.entries(FIELDS).forEach(([el, k]) => nb[k] = $(el).value);
+    saveBiz(nb); $("dSaved").textContent = "Saved"; fillDetail(nb, false);
+  }
+  Object.keys(FIELDS).forEach(el => $(el).addEventListener("input", saveFields));
+
+  $("dPlace").addEventListener("click", async () => {
+    const b = cur(); if (!b) return;
+    const addr = $("fAddress").value.trim(); if (!addr) { toast("Type the address first"); return; }
+    $("dPlace").disabled = true;
+    const r = await geocodeAddress(addr);
+    $("dPlace").disabled = false;
+    if (!r) { toast("Couldn't find that address — pin will sit at the town center"); return; }
+    saveBiz({ ...cur(), address:addr, lat:parseFloat(r.lat), lng:parseFloat(r.lon) });
+    toast("Placed on map");
+  });
+
+  $("dLog").addEventListener("click", () => {
+    $("dFollowBox").classList.add("hide");
+    $("dLogBox").classList.toggle("hide");
+    $("vDate").value = today(); $("vOutcome").value = "contact"; $("vNote").value = ""; $("vNext").value = ""; $("vFollow").value = nextWorkday(addDays(today(), 3));
+  });
+  $("vCancel").addEventListener("click", () => $("dLogBox").classList.add("hide"));
+  $("vSave").addEventListener("click", () => {
+    const b = cur(); if (!b) return;
+    const v = { date:$("vDate").value || today(), outcome:$("vOutcome").value, note:$("vNote").value.trim(), next:$("vNext").value.trim() };
+    const nb = { ...b, visits:[...(b.visits||[]), v] };
+    if (v.next) nb.next = v.next;
+    nb.followUp = $("vFollow").value || "";
+    if (v.note) nb.notes = b.notes ? b.notes : v.note;
+    saveBiz(nb);
+    $("dLogBox").classList.add("hide"); toast("Visit logged");
+    fillDetail(nb, true); renderAll();
+  });
+
+  // ---- follow-up message templates ----
+  function buildMsg(){
+    const b = cur(); if (!b) return;
+    const first = (b.owner || "").trim().split(/\s+/)[0] || "";
+    const hi = first ? `Hi ${first}` : "Hi";
+    const me = myName() ? `this is ${myName()}` : "";
+    const hiMe = me ? `${hi}, ${me}.` : `${hi}!`;
+    const last = (b.visits||[]).slice().sort((a,c)=>a.date<c.date?1:-1)[0];
+    const when = last ? (last.date === today() ? "today" : last.date === addDays(today(),-1) ? "yesterday" : `on ${dayName(last.date)}`) : "";
+    const note = (last && last.note) || b.notes || "";
+    const noteLine = note && note.length <= 90 ? ` You mentioned ${note.replace(/^[A-Z]/, c => c.toLowerCase()).replace(/\.$/,"")}.` : "";
+    const day = b.followUp && b.followUp >= today() ? dayName(b.followUp) : "later this week";
+    const next = b.next ? ` ${b.next.replace(/\.$/,"")}.` : "";
+    let sms, subj;
+    if (UI.tpl === "contact") {
+      sms = `${hiMe} Thanks for a few minutes at ${b.name}${when?` ${when}`:""}.${noteLine} I'd like to grab 15 minutes to walk you through how it could work for your team. Would ${day} work?`;
+      subj = `Following up — ${b.name}`;
+    } else if (UI.tpl === "demo") {
+      sms = `${hiMe} Thanks again for your time${when?` ${when}`:""}.${next} Any questions come up since we talked? I can stop by ${day}.`;
+      subj = `Thanks for your time — next steps`;
+    } else {
+      sms = `${hiMe} Just checking back in with ${b.name}.${next} Is ${day} a good time to swing by?`;
+      subj = `Checking in`;
+    }
+    let body = sms;
+    if (UI.chan === "email") body = `${sms.replace(/^Hi[^.!]*[.!] ?/, `${hi},\n\n`)}\n\nThanks,\n${myName() || ""}`.replace(/\n\n\n/g,"\n\n");
+    $("msgBody").value = body; $("msgSubj").value = subj;
+    updateSend();
+  }
+  function updateSend(){
+    const b = cur(); if (!b) return;
+    const body = $("msgBody").value;
+    const isEmail = UI.chan === "email";
+    $("subjLabel").classList.toggle("hide", !isEmail); $("msgSubj").classList.toggle("hide", !isEmail);
+    if (isEmail) {
+      $("msgSend").textContent = "Open in Mail";
+      $("msgSend").href = `mailto:${encodeURIComponent(b.email||"")}?subject=${encodeURIComponent($("msgSubj").value)}&body=${encodeURIComponent(body)}`;
+    } else {
+      $("msgSend").textContent = "Open in Messages";
+      $("msgSend").href = `sms:${digits(b.phone)}&body=${encodeURIComponent(body)}`;
+    }
+  }
+  $("dFollow").addEventListener("click", () => {
+    $("dLogBox").classList.add("hide");
+    const box = $("dFollowBox"); box.classList.toggle("hide");
+    if (!box.classList.contains("hide")) {
+      const b = cur(); UI.tpl = lastOutcome(b) === "demo" ? "demo" : (b.visits||[]).length ? "contact" : "checkin";
+      [...$("tplSeg").children].forEach(x => x.classList.toggle("on", x.dataset.t === UI.tpl));
+      buildMsg();
+    }
+  });
+  $("tplSeg").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; UI.tpl = b.dataset.t; [...$("tplSeg").children].forEach(x => x.classList.toggle("on", x === b)); buildMsg(); });
+  $("chanSeg").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; UI.chan = b.dataset.c; [...$("chanSeg").children].forEach(x => x.classList.toggle("on", x === b)); buildMsg(); });
+  $("msgBody").addEventListener("input", updateSend); $("msgSubj").addEventListener("input", updateSend);
+  $("msgCopy").addEventListener("click", async () => {
+    try { await navigator.clipboard.writeText($("msgBody").value); toast("Copied"); }
+    catch { $("msgBody").select(); toast("Text selected — tap Copy"); }
+  });
+
+  // delete
+  $("dDelete").addEventListener("click", () => { const b = cur(); if (!b) return; $("confirmText").textContent = `Delete ${b.name} and its visit history?`; $("confirmBg").classList.add("open"); });
+  $("confirmNo").addEventListener("click", () => $("confirmBg").classList.remove("open"));
+  $("confirmYes").addEventListener("click", () => {
+    $("confirmBg").classList.remove("open");
+    const b = cur(); if (!b) return;
+    S.biz = S.biz.filter(x => x.id !== b.id);
+    Object.values(S.days).forEach(d => { if (d.plan && d.plan.stops) d.plan.stops = d.plan.stops.filter(x => x !== b.id); });
+    save(); closeDetail(); toast("Deleted");
+  });
+
+  // ================= MAP =================
+  function coordsOf(b){
+    if (typeof b.lat === "number" && isFinite(b.lat) && typeof b.lng === "number") return [b.lat, b.lng, true];
+    const t = TOWNS[(b.town||"").trim().toLowerCase()];
+    if (!t) return null;
+    let h = 0; for (const c of b.id) h = (h*31 + c.charCodeAt(0)) >>> 0;
+    const a = (h % 360) * Math.PI/180, r = 0.003 + (h % 7) * 0.001;
+    return [t[0] + Math.sin(a)*r, t[1] + Math.cos(a)*r*1.3, false];
+  }
+  function renderMap(){
+    const towns = [...new Set(S.biz.map(b => (b.town||"").trim()).filter(Boolean))].sort();
+    $("mapTown").innerHTML = `<option value="">All towns</option>` + towns.map(t => `<option ${t===UI.mapTown?"selected":""}>${esc(t)}</option>`).join("");
+    if (!window.L) { $("mapNote").textContent = "Map needs a signal the first time it loads."; return; }
+    if (!UI.map) {
+      UI.map = L.map("map", { zoomControl:true }).setView(TOWNS.ames, 12);
+      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom:19, attribution:"© OpenStreetMap" }).addTo(UI.map);
+      UI.layer = L.layerGroup().addTo(UI.map);
+    }
+    setTimeout(() => UI.map.invalidateSize(), 50);
+    UI.layer.clearLayers();
+    const css = getComputedStyle(document.documentElement), col = n => css.getPropertyValue(n).trim();
+    const colors = { new:col("--pin-new"), contact:col("--pin-contact"), demo:col("--pin-demo"), sale:col("--pin-sale") };
+    const stops = (dayData(today()).plan||{}).stops || [];
+    const list = S.biz.filter(b => !UI.mapTown || (b.town||"").trim() === UI.mapTown);
+    const pts = []; let approx = 0, unplaced = 0;
+    list.forEach(b => {
+      const c = coordsOf(b); if (!c) { unplaced++; return; }
+      if (!c[2]) approx++;
+      const ll = [c[0], c[1]]; pts.push(ll);
+      const ri = stops.indexOf(b.id), lo = lastOutcome(b);
+      const popup = `<b>${esc(b.name)}</b><br><span style="color:#69707d">${esc(b.address || (b.town||"") + " (approx.)")}</span>${b.next?`<br>Next: ${esc(b.next)}`:""}${isDue(b)?`<br><b style="color:#c77700">Follow-up due</b>`:""}<br><button class="btn sm" data-open="${esc(b.id)}" style="margin-top:8px">Details</button>`;
+      const m = ri >= 0
+        ? L.marker(ll, { icon: L.divIcon({ className:"", html:`<div class="num-pin">${ri+1}</div>`, iconSize:[24,24], iconAnchor:[12,12] }) })
+        : L.circleMarker(ll, { radius:9, color:"#fff", weight:2, fillColor:colors[lo], fillOpacity:1, dashArray: c[2] ? null : "3 3" });
+      m.bindPopup(popup).addTo(UI.layer);
+    });
+    const routeLL = stops.map(id => S.biz.find(b => b.id === id)).filter(Boolean).map(coordsOf).filter(Boolean).map(c => [c[0], c[1]]);
+    if (routeLL.length > 1) L.polyline(routeLL, { color:col("--accent"), weight:3, dashArray:"6 6", opacity:.8 }).addTo(UI.layer);
+    if (pts.length) UI.map.fitBounds(pts, { padding:[30,30], maxZoom:15 });
+    else UI.map.setView(TOWNS[(UI.mapTown||"ames").toLowerCase()] || TOWNS.ames, 12);
+    const notes = [];
+    if (approx) notes.push(`${approx} pin${approx>1?"s":""} at town center (dashed) — open the business and tap "Place on map" to fix.`);
+    if (unplaced) notes.push(`${unplaced} not shown (town not recognized and no address).`);
+    $("mapNote").textContent = notes.join(" ");
+  }
+  $("mapTown").addEventListener("change", e => { UI.mapTown = e.target.value; renderMap(); });
+
+  // ================= WEEK =================
+  function rangeStats(days){
+    const T = targets(); let c=0, dm=0, h=0, s=0, wins=0, worked=0;
+    days.forEach(d => {
+      const st = statsFor(d); c += st.contacts; dm += st.demos; h += st.hours; s += st.sales;
+      if (st.contacts || st.hours) { worked++; const hits = [st.contacts>=T.contacts, st.demos>=T.demos, st.hours>=T.hours].filter(Boolean).length; if (hits >= T.wins) wins++; }
+    });
+    return { contacts:c, demos:dm, hours:Math.round(h*100)/100, sales:s, wins, worked };
+  }
+  function townStats(days){
+    const towns = {};
+    days.forEach(d => visitsOn(d).forEach(({b,v}) => { const t = (b.town||"?").trim()||"?"; towns[t] = towns[t] || {c:0,d:0,s:0}; towns[t].c++; if (v.outcome!=="contact") towns[t].d++; if (v.outcome==="sale") towns[t].s++; }));
+    return Object.entries(towns).sort((a,b) => b[1].d - a[1].d || b[1].c - a[1].c);
+  }
+  function insights(){
+    const d = today(), T = targets();
+    const last7 = [6,5,4,3,2,1,0].map(n => addDays(d,-n));
+    const st = rangeStats(last7), towns = townStats(last7), out = [];
+    if (!st.worked) return { list:["No days logged in the last 7 days yet. Log visits and hours, and this fills in."], st, towns, last7 };
+    const per = { contacts: st.contacts/st.worked, demos: st.demos/st.worked, hours: st.hours/st.worked };
+    const ratio = { contacts: per.contacts/T.contacts, demos: per.demos/T.demos, hours: per.hours/T.hours };
+    out.push(`${st.wins} winning day${st.wins===1?"":"s"} out of ${st.worked} worked. Averaging ${per.contacts.toFixed(1)} contacts, ${per.demos.toFixed(1)} demos and ${per.hours.toFixed(1)} hours a day.`);
+    const rate = st.contacts ? st.demos/st.contacts : 0;
+    const neededRate = T.contacts ? T.demos/T.contacts : 0;
+    const worst = Object.entries(ratio).sort((a,b)=>a[1]-b[1])[0];
+    if (worst[1] >= 1) out.push("You hit every target on average. Raise one target next week.");
+    else if (worst[0] === "hours") out.push(`Bottleneck: hours (${Math.round(ratio.hours*100)}% of target). More time in the field fixes the other two. Lock in your start time and don't leave the territory before ${T.hours} hours.`);
+    else if (worst[0] === "contacts") out.push(`Bottleneck: contacts (${Math.round(ratio.contacts*100)}% of target). Work denser areas — strip malls, downtown blocks, business parks — so you spend less time driving between doors.`);
+    else out.push(`Bottleneck: demos (${Math.round(ratio.demos*100)}% of target). You're turning ${Math.round(rate*100)}% of contacts into demos; you need about ${Math.round(neededRate*100)}%. Tighten your opener and ask for the demo on the first visit.`);
+    if (towns.length > 1) {
+      const best = towns.filter(([,x]) => x.c >= 3).sort((a,b) => (b[1].d/b[1].c) - (a[1].d/a[1].c))[0];
+      if (best) out.push(`Best town by demo rate: ${best[0]} (${best[1].d} demos from ${best[1].c} contacts). Give it more days next week.`);
+    }
+    const overdue = S.biz.filter(b => b.followUp && b.followUp < d).length;
+    if (overdue) out.push(`${overdue} follow-up${overdue>1?"s are":" is"} overdue. Clear them Monday morning before new doors.`);
+    const noNext = S.biz.filter(b => (b.visits||[]).length && !b.followUp && lastOutcome(b) !== "sale").length;
+    if (noNext) out.push(`${noNext} visited business${noNext>1?"es have":" has"} no follow-up date. Every non-sale needs a next step.`);
+    return { list:out, st, towns, last7 };
+  }
+  function renderWeek(){
+    const ws = weekStart(today()), days = [0,1,2,3,4,5,6].map(i => addDays(ws,i)).filter(x => x <= today()), st = rangeStats(days);
+    $("weekLabel").textContent = `week of ${niceDate(ws)}`;
+    $("weekScore").innerHTML = `<div class="stat"><b>${st.contacts}</b><span>Contacts</span></div><div class="stat"><b>${st.demos}</b><span>Demos</span></div><div class="stat"><b>${st.hours}</b><span>Hours</span></div>`;
+    $("weekDays").textContent = `${st.wins} winning day${st.wins===1?"":"s"} of ${st.worked} worked · ${st.sales} sale${st.sales===1?"":"s"}`;
+    const I = insights();
+    $("insights").innerHTML = I.list.map(x => `<div class="insight">${esc(x)}</div>`).join("");
+    $("townTable").innerHTML = I.towns.length ? `<table><tr><th>Town</th><th class="n">Contacts</th><th class="n">Demos</th><th class="n">Rate</th></tr>${I.towns.map(([t,x]) => `<tr><td>${esc(t)}</td><td class="n">${x.c}</td><td class="n">${x.d}</td><td class="n">${x.c?Math.round(x.d/x.c*100):0}%</td></tr>`).join("")}</table>` : `<div class="small muted">No visits logged yet.</div>`;
+    const due = S.biz.filter(b => b.followUp && b.followUp <= addDays(today(),7)).sort((a,b)=>a.followUp<b.followUp?-1:1);
+    $("weekDue").innerHTML = due.length ? `<div class="list">${due.map(b => `<div class="item" data-open="${esc(b.id)}"><div class="main"><div class="t">${esc(b.name)}</div><div class="s">${esc(b.next||"Follow up")} · ${esc(b.town||"")}</div></div><span class="tag ${isDue(b)?"due":""}">${esc(niceDate(b.followUp))}</span></div>`).join("")}</div>` : `<div class="small muted">None scheduled.</div>`;
+    if (document.activeElement !== $("gamePlan")) $("gamePlan").value = S.settings.gamePlan || "";
+    const nw = addDays(ws, 7);
+    $("nwLabel").textContent = `For the week of ${niceDate(nw)}`;
+    if (document.activeElement !== $("nextWeek")) $("nextWeek").value = (S.weeks[nw] || {}).text || "";
+    const T = targets();
+    [["tContacts",T.contacts],["tDemos",T.demos],["tHours",T.hours],["tWins",T.wins]].forEach(([id,v]) => { if (document.activeElement !== $(id)) $(id).value = v; });
+    if (document.activeElement !== $("sName")) $("sName").value = S.settings.sName || "";
+    const past = Object.entries(S.weeks).filter(([w,x]) => w !== nw && x.text).sort((a,b) => b[0].localeCompare(a[0]));
+    $("weekList").innerHTML = past.length ? past.map(([w,x]) => `<div class="item" data-week="${esc(w)}"><div class="main"><div class="t">Week of ${esc(niceDate(w))}</div><div class="s">${esc(x.text.slice(0,90))}</div></div></div>`).join("") : `<div class="empty">No past plans yet.</div>`;
+  }
+  $("weekList").addEventListener("click", e => {
+    const it = e.target.closest("[data-week]"); if (!it) return;
+    const x = S.weeks[it.dataset.week]; if (!x) return;
+    const s = it.querySelector(".s"); s.style.whiteSpace = s.style.whiteSpace === "pre-wrap" ? "" : "pre-wrap"; s.textContent = s.style.whiteSpace ? x.text : x.text.slice(0,90);
+  });
+  $("gamePlan").addEventListener("input", now(() => { S.settings.gamePlan = $("gamePlan").value; save(); $("gpSaved").textContent = "saved"; }, 500));
+  $("nextWeek").addEventListener("input", now(() => { const nw = addDays(weekStart(today()),7); S.weeks[nw] = { text:$("nextWeek").value, updated:Date.now() }; save(); $("nwSaved").textContent = "saved"; }, 500));
+  $("nwDraft").addEventListener("click", () => {
+    const I = insights(), d = today(), nw = addDays(weekStart(d), 7);
+    const bestTowns = I.towns.slice(0,3).map(([t]) => t);
+    const pool = bestTowns.length ? bestTowns : [...new Set(S.biz.map(b => (b.town||"").trim()).filter(Boolean))].slice(0,3);
+    const T = targets();
+    const lines = [`Targets: ${T.contacts} contacts, ${T.demos} demos, ${T.hours}+ hours a day. Win = ${T.wins} of 3.`, ""];
+    const focus = I.list[1] || "";
+    if (focus) lines.push("Focus: " + focus.replace(/^Bottleneck: /, ""), "");
+    ["Mon","Tue","Wed","Thu","Fri"].forEach((dn, i) => {
+      const date = addDays(nw, i);
+      const fu = S.biz.filter(b => b.followUp === date || (i === 0 && b.followUp && b.followUp < date)).map(b => b.name);
+      const town = pool.length ? pool[i % pool.length] : "(pick a town)";
+      lines.push(`${dn}: ${town}${fu.length ? ` — follow-ups: ${fu.slice(0,4).join(", ")}${fu.length>4?` +${fu.length-4}`:""}` : ""}`);
+    });
+    lines.push("", "Friday: back up the app, review the week.");
+    const cur = $("nextWeek").value.trim();
+    $("nextWeek").value = (cur ? cur + "\n\n" : "") + lines.join("\n");
+    S.weeks[nw] = { text:$("nextWeek").value, updated:Date.now() }; save(); $("nwSaved").textContent = "saved";
+  });
+  const saveSet = now(() => {
+    Object.assign(S.settings, { tContacts:$("tContacts").value, tDemos:$("tDemos").value, tHours:$("tHours").value, tWins:$("tWins").value, sName:$("sName").value });
+    save(); $("setSaved").textContent = "Saved";
+  }, 400);
+  ["tContacts","tDemos","tHours","tWins","sName"].forEach(id => $(id).addEventListener("input", saveSet));
+
+  // ---- backup / restore ----
+  $("exportBtn").addEventListener("click", async () => {
+    const json = JSON.stringify({ app:"fieldsales", version:1, exported:new Date().toISOString(), data:S }, null, 1);
+    const name = `fieldsales-backup-${today()}.json`;
+    const file = new File([json], name, { type:"application/json" });
+    try {
+      if (navigator.canShare && navigator.canShare({ files:[file] })) { await navigator.share({ files:[file], title:"Field Sales backup" }); S.settings.lastBackup = today(); save(); $("backupNote").textContent = "Backup shared. Save it to Files or email it to yourself."; return; }
+    } catch (e) { if (e && e.name === "AbortError") return; }
+    const a = document.createElement("a"); a.href = URL.createObjectURL(file); a.download = name; document.body.appendChild(a); a.click(); a.remove();
+    S.settings.lastBackup = today(); save(); $("backupNote").textContent = "Backup downloaded.";
+  });
+  $("importFile").addEventListener("change", async e => {
+    const f = e.target.files[0]; if (!f) return;
+    try {
+      const j = JSON.parse(await f.text());
+      const data = j.data || j;
+      if (!Array.isArray(data.biz)) throw new Error("bad file");
+      S = Object.assign(blank(), data); save(); renderAll(); renderWeek();
+      $("backupNote").textContent = `Restored ${S.biz.length} businesses.`;
+    } catch { $("backupNote").textContent = "That file isn't a Field Sales backup."; }
+    e.target.value = "";
+  });
+
+  // ================= boot =================
+  function renderAll(){
+    renderToday(); renderBizList();
+    if (UI.tab === "map") renderMap();
+    if (UI.tab === "week") renderWeek();
+  }
+  const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone;
+  if (!standalone && !S.settings.installTipDone && /iphone|ipad|ipod/i.test(navigator.userAgent)) $("installTip").classList.remove("hide");
+  $("installDismiss").addEventListener("click", () => { $("installTip").classList.add("hide"); S.settings.installTipDone = true; save(); });
+  renderHeader(); renderAll();
+  if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(()=>{});
+})();
+</script>
+</body>
+</html>
