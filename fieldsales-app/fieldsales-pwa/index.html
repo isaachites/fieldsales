@@ -345,6 +345,11 @@
       <div><label>Next step</label><input id="fNext" autocomplete="off"></div>
       <div><label>Follow-up date</label><input id="fFollow" type="date"></div>
     </div>
+    <div class="row" style="margin-top:8px">
+      <input id="fFollowTime" type="time" value="08:30" style="flex:none;width:130px" aria-label="Reminder time">
+      <button class="btn ghost sm" id="dCal">Add follow-up to Calendar</button>
+    </div>
+    <a class="note hide" id="calAlt" target="_blank" rel="noopener" href="#" style="display:block">Didn't open your Calendar? Add it to Google Calendar instead</a>
     <div class="note" id="dSaved"></div>
 
     <h2 style="font-size:15px;margin:18px 0 4px">Visit history</h2>
@@ -772,6 +777,43 @@
   $("msgCopy").addEventListener("click", async () => {
     try { await navigator.clipboard.writeText($("msgBody").value); toast("Copied"); }
     catch { $("msgBody").select(); toast("Text selected — tap Copy"); }
+  });
+
+  // ---- add follow-up to iPhone Calendar (.ics with an alert) ----
+  function icsText(b, date, time){
+    const [hh, mm] = (time || "08:30").split(":").map(Number);
+    const start = parseYmd(date); start.setHours(hh, mm, 0, 0);
+    const end = new Date(start.getTime() + 15*60000);
+    const f = d => `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}T${pad(d.getHours())}${pad(d.getMinutes())}00`;
+    const clean = t => String(t||"").replace(/\\/g,"\\\\").replace(/\n/g,"\\n").replace(/([,;])/g,"\\$1");
+    const now = new Date(), stamp = `${now.getUTCFullYear()}${pad(now.getUTCMonth()+1)}${pad(now.getUTCDate())}T${pad(now.getUTCHours())}${pad(now.getUTCMinutes())}00Z`;
+    const desc = [b.next ? `Next step: ${b.next}` : "", b.owner ? `Contact: ${b.owner}` : "", b.phone ? `Phone: ${b.phone}` : "", b.notes ? `Notes: ${b.notes}` : ""].filter(Boolean).join("\n");
+    return ["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//FieldSales//EN","CALSCALE:GREGORIAN","METHOD:PUBLISH","BEGIN:VEVENT",
+      `UID:${b.id}-${date}@fieldsales`, `DTSTAMP:${stamp}`, `DTSTART:${f(start)}`, `DTEND:${f(end)}`,
+      `SUMMARY:${clean("Follow up: " + b.name)}`, `LOCATION:${clean(b.address || b.town || "")}`, `DESCRIPTION:${clean(desc)}`,
+      "BEGIN:VALARM","ACTION:DISPLAY",`DESCRIPTION:${clean("Follow up: " + b.name)}`,"TRIGGER:-PT0M","END:VALARM",
+      "END:VEVENT","END:VCALENDAR"].join("\r\n");
+  }
+  $("dCal").addEventListener("click", () => {
+    const b = cur(); if (!b) return;
+    const date = $("fFollow").value;
+    if (!date) { toast("Set a follow-up date first"); $("fFollow").focus(); return; }
+    const ics = icsText(b, date, $("fFollowTime").value);
+    const file = new File([ics], `followup-${b.name.replace(/[^\w]+/g,"-").toLowerCase()}.ics`, { type:"text/calendar" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(file); a.download = file.name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+    $("calAlt").classList.remove("hide");
+  });
+  $("calAlt").addEventListener("click", e => {
+    const b = cur(); if (!b) return;
+    const date = $("fFollow").value; if (!date) { e.preventDefault(); toast("Set a follow-up date first"); return; }
+    const [hh, mm] = ($("fFollowTime").value || "08:30").split(":").map(Number);
+    const st = parseYmd(date); st.setHours(hh, mm); const en = new Date(st.getTime() + 15*60000);
+    const f = d => `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}T${pad(d.getHours())}${pad(d.getMinutes())}00`;
+    const details = [b.next ? `Next step: ${b.next}` : "", b.owner ? `Contact: ${b.owner}` : "", b.phone ? `Phone: ${b.phone}` : ""].filter(Boolean).join("\n");
+    $("calAlt").href = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent("Follow up: " + b.name)}&dates=${f(st)}/${f(en)}&ctz=America/Chicago&location=${encodeURIComponent(b.address || b.town || "")}&details=${encodeURIComponent(details)}`;
   });
 
   // delete

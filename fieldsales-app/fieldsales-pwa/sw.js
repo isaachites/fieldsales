@@ -1,6 +1,6 @@
 // Offline support: caches the app itself so it opens with no signal.
 // Bump VERSION whenever you change index.html so phones pick up the update.
-const VERSION = "fs-v2";
+const VERSION = "fs-v3";
 const SHELL = [
   "./",
   "./index.html",
