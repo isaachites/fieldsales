@@ -253,10 +253,20 @@
 
   <!-- WEEK -->
   <section id="tab-week" class="hide">
+    <div class="seg" id="wkSeg" style="margin:10px 0 4px">
+      <button data-v="plan" class="on">Game Plan</button>
+      <button data-v="review">Review</button>
+    </div>
+    <div id="wkPlanView"></div>
+    <div id="wkReviewView" class="hide">
     <div class="card">
       <h2>This week <small id="weekLabel"></small></h2>
       <div class="score" id="weekScore"></div>
       <div class="note" id="weekDays"></div>
+    </div>
+    <div class="card">
+      <h2>Game plan vs actual <small>this week</small></h2>
+      <div id="gpVsActual"></div>
     </div>
     <div class="card">
       <h2>Weekly review</h2>
@@ -294,6 +304,11 @@
       <div class="note" id="coachNote"></div>
     </div>
     <div class="card">
+      <h2>Submitted game plans</h2>
+      <div class="list" id="gpHistory"></div>
+    </div>
+    <div class="hide">
+    <div class="card">
       <h2>My weekly B2B game plan <small id="gpSaved"></small></h2>
       <textarea id="gamePlan" style="min-height:140px" placeholder="Paste your weekly B2B sales game plan here. It stays here for reference every week."></textarea>
     </div>
@@ -306,6 +321,7 @@
     <div class="card">
       <h2>Past weekly plans</h2>
       <div class="list" id="weekList"></div>
+    </div>
     </div>
     <div class="card">
       <h2>Settings</h2>
@@ -327,6 +343,7 @@
         <label class="btn plain" style="margin:0;font-size:15px;color:var(--ink)">Restore from backup<input type="file" id="importFile" accept=".json,application/json" class="hide"></label>
       </div>
       <div class="note" id="backupNote"></div>
+    </div>
     </div>
   </section>
 </main>
@@ -515,7 +532,7 @@
     ["today","biz","map","systems","week"].forEach(x => $("tab-"+x).classList.toggle("hide", x !== t));
     renderHeader();
     if (t === "map") renderMap();
-    if (t === "week") renderWeek();
+    if (t === "week") setWeekView(UI.weekView || "plan");
     if (t === "today") renderToday();
     if (t === "systems") renderSystems();
     window.scrollTo(0,0);
@@ -992,6 +1009,7 @@
     if (document.activeElement !== $("sName")) $("sName").value = S.settings.sName || "";
     const past = Object.entries(S.weeks).filter(([w,x]) => w !== nw && x.text).sort((a,b) => b[0].localeCompare(a[0]));
     renderSysReview();
+    renderPlanReview();
     $("weekList").innerHTML = past.length ? past.map(([w,x]) => `<div class="item" data-week="${esc(w)}"><div class="main"><div class="t">Week of ${esc(niceDate(w))}</div><div class="s">${esc(x.text.slice(0,90))}</div></div></div>`).join("") : `<div class="empty">No past plans yet.</div>`;
   }
   $("weekList").addEventListener("click", e => {
@@ -1098,7 +1116,7 @@
   }
   function dayTouched(d){ const x = sdGet(d); return !!(x.checks && Object.keys(x.checks).length) || !!x.checkins; }
   function sevenDay(sys){
-    const days = [6,5,4,3,2,1,0].map(n => addDays(today(), -n)).filter(dayTouched);
+    const days = [6,5,4,3,2,1,0].map(n => addDays(today(), -n)).filter(dayTouched).filter(d => runsOn(sys, d));
     let sum = 0, n = 0, friction = 0; const notes = [];
     days.forEach(d => {
       const c = completion(sys, d); if (c) { sum += c.pct; n++; }
@@ -1114,7 +1132,9 @@
     return `<div class="step ${v||""}" data-act="step" data-id="${esc(st.id)}"><span class="box">${boxIcon(v)}</span><span class="txt" style="flex:1">${esc(st.text)}</span>${v==="na"?'<span class="tag">N/A</span>':""}</div>`;
   }
   function slotCards(slot, d){
-    return dailySys().map(sys => {
+    const list = dailySys().filter(sys => runsOn(sys, d));
+    const off = isWeekend(d) && dailySys().some(sys => !runsOn(sys, d)) && slot !== "midday" ? `<div class="note" style="margin:6px 2px">Weekend: work systems (${dailySys().filter(sys => !runsOn(sys, d)).map(x => esc(x.name)).join(", ")}) are off today.</div>` : "";
+    return off + list.map(sys => {
       const steps = sys.steps.filter(st => st.slot === slot);
       if (!steps.length) return "";
       const c = sdGet(d).checks || {};
@@ -1155,9 +1175,9 @@
   }
   function viewMidday(d){
     const x = sdGet(d), st = statsFor(d), T = targets(), lh = liveHours(d);
-    const ms = dailySys().map(sys => { const steps = sys.steps.filter(s => s.slot === "morning"); if (!steps.length) return ""; const c = x.checks||{}; const done = steps.filter(s => c[s.id]==="done").length, tot = steps.filter(s => c[s.id]!=="na").length; return `<div class="small" style="padding:3px 0">${esc(sys.name)} (morning): <b>${done}/${tot}</b></div>`; }).join("");
+    const ms = dailySys().filter(sys => runsOn(sys, d)).map(sys => { const steps = sys.steps.filter(s => s.slot === "morning"); if (!steps.length) return ""; const c = x.checks||{}; const done = steps.filter(s => c[s.id]==="done").length, tot = steps.filter(s => c[s.id]!=="na").length; return `<div class="small" style="padding:3px 0">${esc(sys.name)} (morning): <b>${done}/${tot}</b></div>`; }).join("");
     return `
-      <div class="card"><h2>Scoreboard so far</h2><div class="score">${statBox("Contacts", st.contacts, T.contacts)}${statBox("Demos", st.demos, T.demos)}${statBox("Hours", lh, T.hours, fmtH)}</div></div>
+      ${isWeekend(d) ? `<div class="card"><h2>Weekend</h2><p class="small muted" style="margin:0">No sales targets today. Use midday to check your Big 3 and recharge.</p></div>` : `<div class="card"><h2>Scoreboard so far</h2><div class="score">${statBox("Contacts", st.contacts, T.contacts)}${statBox("Demos", st.demos, T.demos)}${statBox("Hours", lh, T.hours, fmtH)}</div></div>`}
       <div class="card"><h2>Big 3</h2>${big3Html(d, false)}</div>
       <div class="card"><h2>Am I on track?</h2>
         ${pills("track", ["on","off"], x.track, { labels:{on:"On track", off:"Off track"}, bad:"off" })}
@@ -1169,7 +1189,7 @@
   }
   function viewEvening(d){
     const x = sdGet(d);
-    const rate = dailySys().filter(sys => sys.steps.some(s => s.slot !== "weekly")).map(sys => {
+    const rate = dailySys().filter(sys => runsOn(sys, d) && sys.steps.some(s => s.slot !== "weekly")).map(sys => {
       const r = (x.ratings||{})[sys.id], c = completion(sys, d);
       return `<div style="padding:8px 0;border-bottom:1px solid var(--line)"><div class="row" style="align-items:center"><b style="flex:1">${esc(sys.name)}</b><span class="small muted" style="flex:none">${c ? `${c.done}/${c.tot}` : ""}</span></div>
         <div class="pill" style="margin-top:6px"><button data-act="rate" data-sys="${esc(sys.id)}" data-val="smooth" class="${r==="smooth"?"on":""}">Smooth</button><button data-act="rate" data-sys="${esc(sys.id)}" data-val="friction" class="${r==="friction"?"on bad":""}">Friction</button></div>
@@ -1190,12 +1210,13 @@
   function viewManage(){
     const list = (S.systems||[]).map(sys => {
       const open = UI.sysOpen[sys.id], sd7 = sysCadenceStat(sys), last = sys.log[sys.log.length-1] || { v:1 };
-      const head = `<div class="item" data-act="toggle" data-sys="${esc(sys.id)}"><div class="main"><div class="t">${esc(sys.name)}${sys.active===false?' <span class="tag">Archived</span>':""}</div><div class="s">${esc(sys.cadence === "daily" ? "Daily" : "Weekly")} · v${last.v} · ${esc(sd7)}</div></div><span class="muted">${open?"▴":"▾"}</span></div>`;
+      const head = `<div class="item" data-act="toggle" data-sys="${esc(sys.id)}"><div class="main"><div class="t">${esc(sys.name)}${sys.active===false?' <span class="tag">Archived</span>':""}</div><div class="s">${esc(sys.cadence === "daily" ? (sys.days === "weekdays" ? "Weekdays" : "Daily") : "Weekly")} · v${last.v} · ${esc(sd7)}</div></div><span class="muted">${open?"▴":"▾"}</span></div>`;
       if (!open) return head;
       return head + `<div class="box" style="margin:4px 0 12px">
         <label>Name</label><input data-sysf="name" data-sys="${esc(sys.id)}" value="${esc(sys.name)}">
         <label>Purpose (the result it produces)</label><textarea data-sysf="purpose" data-sys="${esc(sys.id)}" style="min-height:56px">${esc(sys.purpose||"")}</textarea>
         <label>Metric</label><input data-sysf="metric" data-sys="${esc(sys.id)}" value="${esc(sys.metric||"")}">
+        ${sys.cadence === "daily" ? `<label>Runs</label><select data-runs="${esc(sys.id)}"><option value="all" ${sys.days!=="weekdays"?"selected":""}>Every day</option><option value="weekdays" ${sys.days==="weekdays"?"selected":""}>Weekdays only</option></select>` : ""}
         <label>Cadence</label><select data-cad="${esc(sys.id)}"><option value="daily" ${sys.cadence==="daily"?"selected":""}>Daily</option><option value="weekly" ${sys.cadence==="weekly"?"selected":""}>Weekly</option></select>
         <label>Steps</label>
         ${sys.steps.map(st => `<div class="sysrow"><input data-steptext="${esc(st.id)}" data-sys="${esc(sys.id)}" value="${esc(st.text)}"><select data-stepslot="${esc(st.id)}" data-sys="${esc(sys.id)}">${(sys.cadence==="weekly"?["weekly"]:["morning","midday","evening"]).map(sl => `<option value="${sl}" ${st.slot===sl?"selected":""}>${SLOTS[sl]}</option>`).join("")}</select><button class="x2" data-act="delstep" data-sys="${esc(sys.id)}" data-id="${esc(st.id)}" aria-label="Remove step">×</button></div>`).join("")}
@@ -1280,6 +1301,7 @@
   $("sysView").addEventListener("change", e => {
     const t = e.target;
     if (t.dataset.stepslot) { const sys = sysById(t.dataset.sys); const st = sys.steps.find(x => x.id === t.dataset.stepslot); if (st) { st.slot = t.value; save(); } }
+    else if (t.dataset.runs) { const sys = sysById(t.dataset.runs); sys.days = t.value; save(); renderSystems(); }
     else if (t.dataset.bbfocus) { bbSet(weekStart(today()), { focus: t.value ? +t.value : null }); renderSystems(); }
     else if (t.dataset.cad) { const sys = sysById(t.dataset.cad); sys.cadence = t.value; sys.steps.forEach(st => { st.slot = t.value === "weekly" ? "weekly" : (st.slot === "weekly" ? "evening" : st.slot); }); save(); renderSystems(); }
   });
@@ -1364,8 +1386,9 @@
       const fi = BASICS.find(([n]) => n === bw.focus); if (fi) L.push(`Focus basic this week: #${fi[0]} ${fi[2]}`); }
     const changes = activeSys().flatMap(sys => sys.log.filter(l => l.v > 1).slice(-2).map(l => `${sys.name} v${l.v} (${l.date}): ${l.text}`));
     if (changes.length) { L.push("", "RECENT SYSTEM CHANGES"); changes.forEach(c => L.push("- " + c)); }
-    L.push("", "MY WEEKLY B2B GAME PLAN", (S.settings.gamePlan || "(not written yet)"));
-    const nw = addDays(ws,7), nwt = (S.weeks[nw]||{}).text; if (nwt) L.push("", "MY DRAFT FOR NEXT WEEK", nwt);
+    gpInit();
+    L.push("", "THIS WEEK'S SUBMITTED GAME PLAN (target vs actual)", planText(latestSubmitted(ws)));
+    const nwp = latestSubmitted(addDays(ws,7)); if (nwp) L.push("", "NEXT WEEK'S SUBMITTED GAME PLAN", planText(nwp));
     L.push("", "WHAT I WANT FROM YOU (under 400 words, plain text):",
       "1. Scorecard: one honest paragraph on last week — sales vs targets and how my systems ran. If data is thin, say so.",
       "2. Bottleneck: the ONE system or basic (sales or personal) holding everything else back, with the evidence from the numbers.",
@@ -1496,11 +1519,225 @@
         <b>Goal:</b> climb a grade at a time. A = 90+.</div></div>`;
   }
 
+  // ================= WEEKLY GAME PLAN =================
+  const DAYS5 = [["mon","Monday"],["tue","Tuesday"],["wed","Wednesday"],["thu","Thursday"],["fri","Friday"]];
+  const FIXED = { mon:"Agency call 8:00", wed:"Agency call 8:00", fri:"Agency call 9:00" };
+  const AUTO_METRICS = { contacts:"Contacts", demos:"Demos", sales:"Sales", hours:"Hours" };
+  function gpInit(){
+    if (!S.gp) S.gp = { drafts:{}, submitted:[], actuals:{} };
+    if (!S.gp.drafts) S.gp.drafts = {}; if (!S.gp.submitted) S.gp.submitted = []; if (!S.gp.actuals) S.gp.actuals = {};
+  }
+  function defaultPlanWeek(){ const dow = new Date().getDay(); const ws = weekStart(today()); return (dow === 5 || dow === 6 || dow === 0) ? addDays(ws, 7) : ws; }
+  function latestSubmitted(week){ return S.gp.submitted.filter(p => p.week === week).sort((a,b) => b.submittedAt - a.submittedAt)[0] || null; }
+  function newDraft(week){
+    const T = targets();
+    // carry structure forward from the most recent plan
+    const prev = Object.values(S.gp.drafts).filter(d => d.week < week).sort((a,b) => b.week.localeCompare(a.week))[0]
+              || S.gp.submitted.slice().sort((a,b) => b.week.localeCompare(a.week))[0];
+    const metrics = prev ? prev.metrics.map(m => ({ ...m, id:"m"+rid() }))
+      : [ { id:"m"+rid(), name:"Contacts", target:String(T.contacts*5), auto:"contacts" },
+          { id:"m"+rid(), name:"Demos", target:String(T.demos*5), auto:"demos" },
+          { id:"m"+rid(), name:"Sales", target:"", auto:"sales" },
+          { id:"m"+rid(), name:"Hours in the field", target:String(T.hours*5), auto:"hours" },
+          { id:"m"+rid(), name:"Referrals", target:"", auto:"" } ];
+    return { week, goals: prev ? prev.goals || "" : "", metrics, days: Object.fromEntries(DAYS5.map(([k]) => [k, { town:"", focus:"" }])),
+      followups:"", priorities:"", notes: (!prev && S.settings.gamePlan) ? S.settings.gamePlan : "", updated:Date.now() };
+  }
+  function draftFor(week){
+    if (!S.gp.drafts[week]) {
+      const sub = latestSubmitted(week);
+      S.gp.drafts[week] = sub ? JSON.parse(JSON.stringify({ ...sub, id:undefined, submittedAt:undefined })) : newDraft(week);
+      save();
+    }
+    return S.gp.drafts[week];
+  }
+  function weekActual(week, auto){
+    const days = [0,1,2,3,4,5,6].map(i => addDays(week, i)).filter(d => d <= today());
+    let v = 0; days.forEach(d => { const s = statsFor(d); v += auto === "hours" ? s.hours : (s[auto] || 0); });
+    return auto === "hours" ? Math.round(v*10)/10 : v;
+  }
+  function planChangedSinceSubmit(dr){
+    const sub = latestSubmitted(dr.week); if (!sub) return null;
+    const strip = o => JSON.stringify({ g:o.goals, m:o.metrics.map(x => [x.name,x.target,x.auto]), d:o.days, f:o.followups, p:o.priorities, n:o.notes });
+    return strip(sub) !== strip(dr);
+  }
+  const weekRange = w => `${parseYmd(w).toLocaleDateString(undefined,{month:"short",day:"numeric"})} – ${parseYmd(addDays(w,4)).toLocaleDateString(undefined,{month:"short",day:"numeric"})}`;
+
+  function viewGamePlan(){
+    gpInit();
+    if (!UI.gpWeek) UI.gpWeek = defaultPlanWeek();
+    const ws = weekStart(today()), dr = draftFor(UI.gpWeek), sub = latestSubmitted(dr.week), changed = planChangedSinceSubmit(dr);
+    const weeks = [addDays(ws,-7), ws, addDays(ws,7), addDays(ws,14)];
+    const status = sub
+      ? (changed ? `<div class="banner" style="margin:8px 0 0">Edited since you submitted it ${esc(new Date(sub.submittedAt).toLocaleString([], {weekday:"short", hour:"numeric", minute:"2-digit"}))}. Resubmit to save this version to your review.</div>`
+                 : `<div class="done-banner">Submitted ${esc(new Date(sub.submittedAt).toLocaleString([], {weekday:"short", month:"short", day:"numeric", hour:"numeric", minute:"2-digit"}))}</div>`)
+      : `<div class="note">Draft — not submitted yet.</div>`;
+    return `
+      <div class="card"><h2>Weekly game plan</h2>
+        <label style="margin-top:0">Plan for the week of</label>
+        <select data-gp="week">${weeks.map(w => `<option value="${w}" ${w===dr.week?"selected":""}>${esc(weekRange(w))}${w===ws?" (this week)":w===addDays(ws,7)?" (next week)":""}${latestSubmitted(w)?" ✓":""}</option>`).join("")}</select>
+        ${status}
+      </div>
+      <div class="card"><h2>Goals & why they matter</h2>
+        <textarea data-gpf="goals" style="min-height:90px" placeholder="What I'm going after this week, and why it matters to me">${esc(dr.goals||"")}</textarea>
+      </div>
+      <div class="card"><h2>Metrics <small>target for the week</small></h2>
+        ${dr.metrics.map(m => `<div class="sysrow">
+            <input data-gpm="name" data-id="${m.id}" value="${esc(m.name)}" placeholder="Metric">
+            <input data-gpm="target" data-id="${m.id}" value="${esc(m.target||"")}" placeholder="Target" inputmode="decimal" style="flex:none;width:84px">
+            <button class="x2" data-gpact="delm" data-id="${m.id}" aria-label="Remove metric">×</button></div>
+            ${m.auto ? `<div class="note" style="margin:2px 0 4px">Tracked automatically from your visit log${dr.week <= today() ? ` · so far: <b>${weekActual(dr.week, m.auto)}</b>` : ""}</div>` : `<div class="note" style="margin:2px 0 4px">You log this one in Review</div>`}`).join("")}
+        <div class="actions"><button class="btn plain sm" data-gpact="addm">+ Add metric</button></div>
+      </div>
+      <div class="card"><h2>Territory by day</h2>
+        ${DAYS5.map(([k,label]) => { const dd = (dr.days||{})[k] || {}; return `<div style="padding:8px 0;border-bottom:1px solid var(--line)">
+          <b>${label}</b>${FIXED[k] ? ` <span class="tag">${FIXED[k]}</span>` : ""}
+          <div class="grid2" style="margin-top:6px"><input data-gpd="town" data-day="${k}" value="${esc(dd.town||"")}" placeholder="Town / area" list="townList"><input data-gpd="focus" data-day="${k}" value="${esc(dd.focus||"")}" placeholder="Focus"></div></div>`; }).join("")}
+        <div class="actions"><button class="btn ghost sm" data-gpact="autofill">Fill empty days from my numbers</button></div>
+      </div>
+      <div class="card"><h2>Key follow-ups & accounts</h2>
+        <textarea data-gpf="followups" placeholder="Businesses to close, demos to finish, enrollments to set up">${esc(dr.followups||"")}</textarea>
+        <div class="actions"><button class="btn plain sm" data-gpact="pullfu">Add follow-ups due that week</button></div>
+      </div>
+      <div class="card"><h2>What I'm improving</h2>
+        <textarea data-gpf="priorities" placeholder="Focus basic, system change, skill to drill">${esc(dr.priorities||"")}</textarea>
+      </div>
+      <div class="card"><h2>Notes & new variables</h2>
+        <textarea data-gpf="notes" placeholder="Anything that comes up mid-week — schedule changes, new leads, adjustments">${esc(dr.notes||"")}</textarea>
+      </div>
+      <div class="card"><h2>Submit your game plan</h2>
+        <p class="small muted" style="margin:0">Submitting saves a copy of this plan to your Review tab, where it's scored against what actually happened. You can keep editing and resubmit anytime — every version is kept.</p>
+        <div class="actions"><button class="btn" data-gpact="submit" style="flex:1">${sub ? "Resubmit game plan" : "Submit game plan"}</button></div>
+      </div>`;
+  }
+
+  function renderGamePlan(){ $("wkPlanView").innerHTML = viewGamePlan(); }
+  $("wkPlanView").addEventListener("input", e => {
+    const t = e.target, dr = draftFor(UI.gpWeek);
+    if (t.dataset.gpf) dr[t.dataset.gpf] = t.value;
+    else if (t.dataset.gpm) { const m = dr.metrics.find(x => x.id === t.dataset.id); if (m) m[t.dataset.gpm] = t.value; }
+    else if (t.dataset.gpd) { dr.days[t.dataset.day] = { ...(dr.days[t.dataset.day]||{}), [t.dataset.gpd]: t.value }; }
+    else return;
+    dr.updated = Date.now(); save();
+  });
+  $("wkPlanView").addEventListener("change", e => {
+    if (e.target.dataset.gp === "week") { UI.gpWeek = e.target.value; renderGamePlan(); window.scrollTo(0,0); }
+  });
+  $("wkPlanView").addEventListener("click", e => {
+    const el = e.target.closest("[data-gpact]"); if (!el) return;
+    const dr = draftFor(UI.gpWeek), a = el.dataset.gpact;
+    if (a === "addm") dr.metrics.push({ id:"m"+rid(), name:"", target:"", auto:"" });
+    else if (a === "delm") dr.metrics = dr.metrics.filter(m => m.id !== el.dataset.id);
+    else if (a === "autofill") {
+      const I = insights(), pool = I.towns.map(([t]) => t).filter(t => t !== "?");
+      const fallback = [...new Set(S.biz.map(b => (b.town||"").trim()).filter(Boolean))];
+      const towns = (pool.length ? pool : fallback);
+      DAYS5.forEach(([k], i) => {
+        const dd = dr.days[k] = dr.days[k] || {};
+        const date = addDays(dr.week, i);
+        const fu = S.biz.filter(b => b.followUp === date || (i === 0 && b.followUp && b.followUp < date)).map(b => b.name);
+        if (!dd.town && towns.length) dd.town = towns[i % towns.length];
+        if (!dd.focus && fu.length) dd.focus = `Follow-ups: ${fu.slice(0,3).join(", ")}${fu.length>3?` +${fu.length-3}`:""}`;
+      });
+      if (!towns.length) toast("Log some visits first so the app knows your towns");
+    }
+    else if (a === "pullfu") {
+      const end = addDays(dr.week, 6);
+      const fu = S.biz.filter(b => b.followUp && b.followUp <= end).sort((x,y) => x.followUp < y.followUp ? -1 : 1).map(b => `- ${b.name} (${b.town||"?"}) ${niceDate(b.followUp)}: ${b.next || "follow up"}`);
+      if (!fu.length) { toast("No follow-ups due that week"); return; }
+      dr.followups = (dr.followups ? dr.followups.trim() + "\n" : "") + fu.join("\n");
+    }
+    else if (a === "submit") {
+      const snap = JSON.parse(JSON.stringify(dr));
+      S.gp.submitted.push({ ...snap, id:"gp"+rid(), submittedAt:Date.now() });
+      if (dr.priorities) { /* keep */ }
+      save(); toast("Game plan submitted — it's in your Review tab");
+    }
+    dr.updated = Date.now(); save(); renderGamePlan();
+  });
+
+  // ---------- Review tab: plan vs actual + history ----------
+  function planVsActualHtml(p, editable){
+    const act = S.gp.actuals[p.week] || {};
+    const rows = p.metrics.filter(m => m.name).map(m => {
+      const future = p.week > today();
+      const actual = future ? "" : (m.auto ? weekActual(p.week, m.auto) : act[m.id]);
+      const tgt = parseFloat(m.target);
+      const pct = isFinite(tgt) && tgt > 0 && actual !== undefined && actual !== "" ? Math.round(parseFloat(actual)/tgt*100) : null;
+      const actCell = future ? `<span class="muted">–</span>` : m.auto ? `<b>${actual}</b>` : (editable ? `<input data-gpact-val="${m.id}" data-week="${p.week}" value="${esc(act[m.id] ?? "")}" inputmode="decimal" style="width:70px;padding:6px 8px">` : `<b>${esc(act[m.id] ?? "–")}</b>`);
+      return `<tr><td>${esc(m.name)}</td><td class="n">${esc(m.target||"–")}</td><td class="n">${actCell}</td><td class="n" style="color:${pct==null?"var(--muted)":pct>=100?"var(--good)":pct>=70?"var(--warn)":"var(--bad)"}">${pct==null?"–":pct+"%"}</td></tr>`;
+    }).join("");
+    return `<table><tr><th>Metric</th><th class="n">Target</th><th class="n">Actual</th><th class="n">%</th></tr>${rows}</table>`;
+  }
+  function planBodyHtml(p){
+    const days = DAYS5.map(([k,l]) => { const dd = (p.days||{})[k]||{}; return dd.town || dd.focus ? `<div><b>${l.slice(0,3)}:</b> ${esc(dd.town||"")}${dd.focus?` — ${esc(dd.focus)}`:""}</div>` : ""; }).join("");
+    return `${p.goals?`<label>Goals & why</label><div class="small" style="white-space:pre-wrap">${esc(p.goals)}</div>`:""}
+      ${days?`<label>Territory</label><div class="small">${days}</div>`:""}
+      ${p.followups?`<label>Follow-ups</label><div class="small" style="white-space:pre-wrap">${esc(p.followups)}</div>`:""}
+      ${p.priorities?`<label>Improving</label><div class="small" style="white-space:pre-wrap">${esc(p.priorities)}</div>`:""}
+      ${p.notes?`<label>Notes</label><div class="small" style="white-space:pre-wrap">${esc(p.notes)}</div>`:""}`;
+  }
+  function renderPlanReview(){
+    gpInit();
+    const ws = weekStart(today()), cur = latestSubmitted(ws), nxt = latestSubmitted(addDays(ws,7));
+    const nxtLine = nxt ? `<div class="done-banner" style="margin-top:10px">Next week's plan (${esc(weekRange(addDays(ws,7)))}) is submitted</div>` : (new Date().getDay() >= 5 || new Date().getDay() === 0 ? `<div class="note" style="margin-top:10px">Next week's plan isn't submitted yet — it's due Friday at 5:30pm.</div>` : "");
+    $("gpVsActual").innerHTML = (cur
+      ? `<div class="note" style="margin:0 0 8px">Plan submitted ${esc(new Date(cur.submittedAt).toLocaleString([], {weekday:"short", month:"short", day:"numeric", hour:"numeric", minute:"2-digit"}))}. Enter actuals for metrics the app can't track.</div>${planVsActualHtml(cur, true)}`
+      : `<div class="small muted">No game plan submitted for this week (${esc(weekRange(ws))}). Write one in the Game Plan tab and submit it.</div>`) + nxtLine;
+    const weeks = [...new Set(S.gp.submitted.map(p => p.week))].sort().reverse();
+    $("gpHistory").innerHTML = weeks.length ? weeks.map(w => {
+      const p = latestSubmitted(w), versions = S.gp.submitted.filter(x => x.week === w).length, open = UI.gpOpen === w;
+      return `<div class="item" data-gpopen="${w}"><div class="main"><div class="t">Week of ${esc(weekRange(w))}</div><div class="s">Submitted ${esc(new Date(p.submittedAt).toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"}))}${versions>1?` · ${versions} versions`:""}</div></div><span class="muted">${open?"▴":"▾"}</span></div>
+        ${open ? `<div class="box" style="margin:4px 0 12px">${planVsActualHtml(p, w <= ws)}${planBodyHtml(p)}<div class="actions"><button class="btn plain sm" data-gpedit="${w}">Open in Game Plan</button></div></div>` : ""}`;
+    }).join("") : `<div class="empty">No submitted game plans yet.</div>`;
+  }
+  $("gpVsActual").addEventListener("input", e => { const t = e.target; if (!t.dataset.gpactVal) return; const w = t.dataset.week; S.gp.actuals[w] = { ...(S.gp.actuals[w]||{}), [t.dataset.gpactVal]: t.value }; save(); });
+  $("gpHistory").addEventListener("input", e => { const t = e.target; if (!t.dataset.gpactVal) return; const w = t.dataset.week; S.gp.actuals[w] = { ...(S.gp.actuals[w]||{}), [t.dataset.gpactVal]: t.value }; save(); });
+  $("gpHistory").addEventListener("click", e => {
+    const ed = e.target.closest("[data-gpedit]"); if (ed) { UI.gpWeek = ed.dataset.gpedit; setWeekView("plan"); return; }
+    const it = e.target.closest("[data-gpopen]"); if (!it) return;
+    UI.gpOpen = UI.gpOpen === it.dataset.gpopen ? null : it.dataset.gpopen; renderPlanReview();
+  });
+
+  function setWeekView(v){
+    UI.weekView = v;
+    [...$("wkSeg").children].forEach(b => b.classList.toggle("on", b.dataset.v === v));
+    $("wkPlanView").classList.toggle("hide", v !== "plan");
+    $("wkReviewView").classList.toggle("hide", v !== "review");
+    if (v === "plan") renderGamePlan(); else renderWeek();
+    window.scrollTo(0,0);
+  }
+  $("wkSeg").addEventListener("click", e => { const b = e.target.closest("button"); if (b) setWeekView(b.dataset.v); });
+
+  // text for the AI coach
+  function planText(p){
+    if (!p) return "(none submitted)";
+    const act = S.gp.actuals[p.week] || {};
+    const L = [`Week of ${weekRange(p.week)} (submitted ${new Date(p.submittedAt).toLocaleString()})`];
+    if (p.goals) L.push("Goals & why: " + p.goals);
+    L.push("Metrics (target → actual): " + p.metrics.filter(m => m.name).map(m => `${m.name} ${m.target||"-"} → ${m.auto ? weekActual(p.week, m.auto) : (act[m.id] ?? "-")}`).join("; "));
+    DAYS5.forEach(([k,l]) => { const dd = (p.days||{})[k]||{}; if (dd.town || dd.focus) L.push(`${l}: ${dd.town||""}${dd.focus?` — ${dd.focus}`:""}`); });
+    if (p.followups) L.push("Follow-ups: " + p.followups);
+    if (p.priorities) L.push("Improving: " + p.priorities);
+    if (p.notes) L.push("Notes: " + p.notes);
+    return L.join("\n");
+  }
+
+  // ---------- weekend mode ----------
+  const WEEKDAY_ONLY = ["prospecting","shutdown","basics"];
+  function migrateDays(){
+    let ch = false;
+    (S.systems||[]).forEach(sys => { if (!sys.days) { sys.days = WEEKDAY_ONLY.includes(sys.id) ? "weekdays" : "all"; ch = true; } });
+    if (ch) save();
+  }
+  const isWeekend = d => [0,6].includes(parseYmd(d).getDay());
+  const runsOn = (sys, d) => sys.days !== "weekdays" || !isWeekend(d);
+
   // ================= boot =================
   function renderAll(){
     renderToday(); renderBizList();
     if (UI.tab === "map") renderMap();
-    if (UI.tab === "week") renderWeek();
+    if (UI.tab === "week") (UI.weekView === "review" ? renderWeek() : renderGamePlan());
     if (UI.tab === "systems") renderSystems();
   }
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone;
@@ -1508,6 +1745,8 @@
   $("installDismiss").addEventListener("click", () => { $("installTip").classList.add("hide"); S.settings.installTipDone = true; save(); });
   seedSystems();
   seedBasics();
+  gpInit();
+  migrateDays();
   renderHeader(); renderAll();
   routeHash();
   window.addEventListener("hashchange", routeHash);
