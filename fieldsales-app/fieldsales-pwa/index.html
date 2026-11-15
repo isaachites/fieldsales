@@ -126,6 +126,22 @@
   .sysrow select{width:110px;flex:none}
   .x2{background:none;border:0;color:var(--muted);font-size:20px;cursor:pointer;padding:4px 8px;flex:none}
   .done-banner{background:color-mix(in srgb,var(--good) 14%,transparent);color:var(--good);font-weight:600;padding:10px 12px;border-radius:10px;text-align:center;margin-top:10px}
+  #aiFab{position:fixed;right:14px;bottom:calc(78px + env(safe-area-inset-bottom));width:56px;height:56px;border-radius:50%;border:0;background:var(--accent);color:#fff;box-shadow:0 6px 18px rgba(0,0,0,.25);z-index:700;display:flex;align-items:center;justify-content:center;cursor:pointer}
+  #aiFab svg{width:26px;height:26px}
+  #aiBubble{position:fixed;right:14px;bottom:calc(144px + env(safe-area-inset-bottom));max-width:min(320px,82vw);background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:16px 16px 4px 16px;padding:11px 13px;font-size:14px;line-height:1.4;box-shadow:0 8px 24px rgba(0,0,0,.18);z-index:701;cursor:pointer}
+  #aiBubble::before{content:"Coach";display:block;font-size:11px;font-weight:700;color:var(--accent);margin-bottom:3px;text-transform:uppercase;letter-spacing:.04em}
+  #aiPanel{position:fixed;left:0;right:0;bottom:0;top:auto;height:78vh;max-width:760px;margin:0 auto;background:var(--card);border-radius:18px 18px 0 0;box-shadow:0 -8px 30px rgba(0,0,0,.25);z-index:900;display:flex;flex-direction:column;padding-bottom:env(safe-area-inset-bottom)}
+  #aiPanel.hide{display:none}
+  #aiPanel .ah{display:flex;align-items:center;gap:8px;padding:14px 16px 8px;border-bottom:1px solid var(--line)}
+  #aiMsgs{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;padding:12px}
+  .msg{max-width:86%;padding:9px 12px;border-radius:14px;margin:6px 0;font-size:14px;line-height:1.45;white-space:normal}
+  .msg.user{margin-left:auto;background:var(--accent);color:#fff;border-bottom-right-radius:4px}
+  .msg.assistant{background:var(--bg);border-bottom-left-radius:4px}
+  .msg .mtag{font-size:11px;font-weight:700;color:var(--muted);margin-bottom:2px}
+  .msg.typing{color:var(--muted)}
+  #aiQuick{display:flex;gap:6px;overflow-x:auto;padding:6px 12px}
+  #aiQuick button{flex:none;border:1px solid var(--line);background:var(--bg);color:var(--ink);font:inherit;font-size:13px;padding:7px 10px;border-radius:16px;cursor:pointer}
+  #aiForm{display:flex;gap:8px;padding:8px 12px 12px}
   .install{background:var(--soft);border-radius:12px;padding:12px;font-size:14px;margin:10px 0}
 </style>
 </head>
@@ -446,6 +462,34 @@
   </div>
 </div>
 
+<button id="aiFab" aria-label="Open coach"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/><path d="M9 10.5h.01M12 10.5h.01M15 10.5h.01" stroke-linecap="round" stroke-width="2.6"/></svg></button>
+<div id="aiBubble" class="hide"></div>
+<div id="aiPanel" class="hide">
+  <div class="ah"><b style="flex:1;font-size:16px">Coach</b><button class="btn plain sm" id="aiClear">Clear</button><button class="x" id="aiClose" aria-label="Close">×</button></div>
+  <div id="aiSetup" class="hide" style="padding:14px 16px;overflow:auto">
+    <p class="small" style="margin-top:0">The coach runs on Claude through your own Anthropic API key. It's billed to you per use — usually pennies per conversation — and the key is stored only on this phone.</p>
+    <ol class="small" style="padding-left:18px;line-height:1.6">
+      <li>On a computer, go to <b>console.anthropic.com</b> and sign in.</li>
+      <li>Add a payment method under <b>Billing</b> and buy a small amount of credit ($5 is plenty to start).</li>
+      <li>Go to <b>API Keys</b> → <b>Create Key</b>, name it "Field Sales", and copy it.</li>
+      <li>Paste it below. Texting it to yourself is the easiest way to get it onto your phone — delete the text after.</li>
+    </ol>
+    <input id="aiKeyInput" type="password" placeholder="sk-ant-…" autocomplete="off">
+    <div class="actions"><button class="btn" id="aiSaveKey">Turn on coach</button></div>
+    <div class="note" id="aiKeyNote"></div>
+  </div>
+  <div id="aiChatArea" class="hide" style="display:flex;flex-direction:column;flex:1;min-height:0">
+    <div id="aiMsgs"></div>
+    <div id="aiQuick">
+      <button data-q="Plan my next 2-hour block. Given where I am today, what's the goal and exactly how do I hit it?">Plan my next block</button>
+      <button data-q="How am I doing today against my targets and my block goals? Be blunt.">How am I doing?</button>
+      <button data-q="Critique the game plan I'm working on against my previous plans and results.">Critique my game plan</button>
+      <button data-q="What's the one thing I should fix this week, based on my numbers and my Back to the Basics score?">One thing to fix</button>
+    </div>
+    <form id="aiForm"><input id="aiInput" placeholder="Ask your coach…" autocomplete="off"><button class="btn" type="submit">Send</button></form>
+    <div class="small" style="display:flex;align-items:center;gap:8px;padding:0 14px 10px;color:var(--muted)"><label style="display:flex;align-items:center;gap:6px;margin:0;color:var(--muted)"><input type="checkbox" id="aiAutoChk" style="width:auto;-webkit-appearance:checkbox;appearance:auto"> Pop-up feedback as I type</label><span style="flex:1"></span><a href="#" id="aiRemoveKey" style="color:var(--muted)" onclick="return false">Remove key</a></div>
+  </div>
+</div>
 <div class="toast" id="toast"></div>
 
 <script src="vendor/leaflet/leaflet.js"></script>
@@ -592,7 +636,7 @@
     renderScore();
   });
   $("hoursInput").addEventListener("change", e => { const v = parseFloat(e.target.value); saveDay(today(), { hours: isFinite(v) ? v : 0 }); renderScore(); });
-  setInterval(() => { if (dayData(today()).startedAt) renderScore(); }, 30000);
+  setInterval(() => { if (dayData(today()).startedAt) renderScore(); if (UI.tab === "today" && !(document.activeElement && document.activeElement.dataset && document.activeElement.dataset.blk)) renderBlocksCard(); }, 60000);
   document.addEventListener("visibilitychange", () => { if (!document.hidden) { renderHeader(); if (UI.tab === "today") renderToday(); } });
 
   const savePlan = now(() => { const d = today(); saveDay(d, { plan:{ ...(dayData(d).plan||{}), towns:$("planTowns").value, focus:$("planFocus").value } }); $("planSaved").textContent = "saved"; }, 500);
@@ -789,6 +833,7 @@
   $("vSave").addEventListener("click", () => {
     const b = cur(); if (!b) return;
     const v = { date:$("vDate").value || today(), outcome:$("vOutcome").value, note:$("vNote").value.trim(), next:$("vNext").value.trim() };
+    if (v.date === today()) v.ts = Date.now();
     const nb = { ...b, visits:[...(b.visits||[]), v] };
     if (v.next) nb.next = v.next;
     nb.followUp = $("vFollow").value || "";
@@ -1185,6 +1230,7 @@
         <label>${x.track === "off" ? "What I'm changing this afternoon" : "Anything to adjust? (optional)"}</label>
         <input data-f="fix" value="${esc(x.fix||"")}">
         ${ms ? `<label>Morning systems</label>${ms}` : ""}
+        ${!isWeekend(d) ? `<label>2-hour blocks so far</label><div class="small">${PERIODS.filter(([, , , z]) => new Date().getHours() >= z).map(([pid,lbl]) => { const r = (dayData(d).periods||{})[pid]||{}; return `${lbl}: <b>${r.result ? (r.result==="hit"?"Hit":r.result==="miss"?"Missed":"Partial") : "not checked in"}</b>`; }).join(" · ") || "First block still running"}</div><div class="actions"><button class="btn ghost sm" data-act="goto" data-tab="today">Open 2-hour blocks</button></div>` : ""}
       </div>
       ${checkinBtn("midday", d)}`;
   }
@@ -1532,6 +1578,33 @@
     thu:[["8:00–8:45","Call every \"come back\" and stack them into a route"],["9:00–12:00","Scheduled demos and callbacks"],["12:00–12:30","Lunch, call Micah"],["12:30–4:30","Prospecting"],["4:30–5:00","Book enrollments / team meetings for next week"]],
     fri:[["8:00–9:00","Script practice, prep for the call"],["9:00–10:00","Agency call — first business at 10:00"],["10:00–12:30","Follow-ups and demos"],["12:30–1:00","Lunch"],["1:00–5:00","Remaining stops or warm referrals"],["5:00","Weekly review with Micah, map next week's zones"]]
   };
+  const PERIODS = [["p1","8–10",8,10],["p2","10–12",10,12],["p3","12–2",12,14],["p4","2–4",14,16],["p5","4–6",16,18]];
+  const PERIOD_TEMPLATE = {
+    mon:["Agency call 8–9, then first business by 9","Prospecting","Lunch 12–12:30, follow up with leads, then prospecting","Prospecting","Prospect until 5, log numbers, book follow-ups, call Micah"],
+    tue:["Script practice + route 8–8:45, first business by 9","Prospecting","Lunch 12–12:30, follow up with leads, then prospecting","Prospecting","Prospect until 5, log numbers, book follow-ups"],
+    wed:["Agency call 8–9, then first business by 9","Prospecting","Lunch + call Micah, then prospecting","Prospecting","Prospect until 5, log numbers, confirm appointments"],
+    thu:["Call every \"come back\" 8–8:45 and stack the route, first stop 9","Scheduled demos and callbacks","Lunch + call Micah, then prospecting","Prospecting","Book enrollments / team meetings for next week"],
+    fri:["Script practice 8–9, agency call 9–10","First business at 10, follow-ups and demos","Lunch 12:30–1, then prospecting","Remaining stops or warm referrals","Weekly review with Micah at 5, map next week's zones"]
+  };
+  function splitTarget(total, weights){ const t = parseFloat(total)||0; const raw = weights.map(w => t*w); const out = raw.map(Math.floor); let left = Math.round(t) - out.reduce((a,b)=>a+b,0); const order = raw.map((v,i)=>[v-out[i],i]).sort((a,b)=>b[0]-a[0]); for (let j=0; j<order.length && left>0; j++, left--) out[order[j][1]]++; return out; }
+  function defaultPeriods(k, dayC, dayD){
+    const c = splitTarget(dayC, [0.2,0.27,0.2,0.27,0.06]), d = splitTarget(dayD, [0.17,0.33,0.17,0.33,0]);
+    return Object.fromEntries(PERIODS.map(([pid], i) => [pid, { text:PERIOD_TEMPLATE[k][i], contacts:String(c[i]), demos:String(d[i]) }]));
+  }
+  // map free-form time blocks ("12:30–4:30") onto 2-hour periods by start time
+  function blocksToPeriods(blocks){
+    const out = Object.fromEntries(PERIODS.map(([pid]) => [pid, { text:"", contacts:"", demos:"" }]));
+    (blocks||[]).forEach(b => {
+      const m = String(b.time||"").match(/(\d{1,2})(?::(\d{2}))?/); if (!m) return;
+      let h = +m[1]; if (h >= 1 && h <= 7) h += 12;
+      const per = PERIODS.find(([, , a, z]) => h >= a && h < z) || (h < 8 ? PERIODS[0] : PERIODS[4]);
+      const o = out[per[0]]; o.text = (o.text ? o.text + "; " : "") + `${b.time} ${b.text}`.trim();
+      const cm = String(b.text).match(/(\d+)\s+contacts?/i), dm = String(b.text).match(/(\d+)\s+demos?/i);
+      if (cm) o.contacts = String((parseFloat(o.contacts)||0) + +cm[1]);
+      if (dm) o.demos = String((parseFloat(o.demos)||0) + +dm[1]);
+    });
+    return out;
+  }
   function gpInit(){
     if (!S.gp) S.gp = { drafts:{}, submitted:[], actuals:{} };
     ["drafts","actuals","seeded"].forEach(k => { if (!S.gp[k]) S.gp[k] = {}; });
@@ -1547,6 +1620,7 @@
       if (d.theme === undefined) d.theme = [d.town, d.focus].filter(Boolean).join(" — ");
       if (!Array.isArray(d.blocks)) d.blocks = [];
       if (d.contacts === undefined) d.contacts = ""; if (d.demos === undefined) d.demos = "";
+      if (!d.periods) d.periods = d.blocks.length ? blocksToPeriods(d.blocks) : Object.fromEntries(PERIODS.map(([pid]) => [pid, { text:"", contacts:"", demos:"" }]));
       delete d.town; delete d.focus;
     });
     if (p.strategy === undefined) p.strategy = "";
@@ -1592,8 +1666,9 @@
     const days = Object.fromEntries(DAYS5.map(([k]) => {
       const pd = prev && prev.days && prev.days[k];
       const blocks = pd && pd.blocks && pd.blocks.length ? pd.blocks.map(b => blk(b.time, b.text.replace(/\d+\s+contacts?,?\s*/i, "").replace(/\d+\s+demos?\.?\s*/i, "").trim() || b.text)) : TEMPLATE_BLOCKS[k].map(([t,x]) => blk(t,x));
-      return [k, { theme:"", contacts: String(T.contacts), demos: String(T.demos), blocks }];
+      return [k, { theme:"", contacts: String(T.contacts), demos: String(T.demos), blocks:[], periods: pd && pd.periods ? Object.fromEntries(PERIODS.map(([pid]) => [pid, { text:(pd.periods[pid]||{}).text ? String(pd.periods[pid].text).replace(/\d+\s+contacts?,?\s*/ig, "").replace(/\d+\s+demos?\.?\s*/ig, "").trim() : "", contacts:"", demos:"" }])) : defaultPeriods(k, T.contacts, T.demos) }];
     }));
+    DAYS5.forEach(([k]) => { const dp = defaultPeriods(k, T.contacts, T.demos); PERIODS.forEach(([pid]) => { const pp = days[k].periods[pid]; if (!pp.text) pp.text = dp[pid].text; if (!pp.contacts) pp.contacts = dp[pid].contacts; if (!pp.demos) pp.demos = dp[pid].demos; }); });
     return { week, strategy: prev ? prev.strategy || "" : "", rules: prev ? prev.rules || "" : `A winning day hits ${T.wins} of 3: ${T.contacts} contacts, ${T.demos} demos, ${T.hours} hours.`,
       goals: prev ? prev.goals || "" : "", metrics, days,
       prep: [], followups:"", priorities:"", notes:"", updated:Date.now() };
@@ -1613,7 +1688,7 @@
     let v = 0; days.forEach(d => { const s = statsFor(d); v += auto === "hours" ? s.hours : (s[auto] || 0); });
     return auto === "hours" ? Math.round(v*10)/10 : v;
   }
-  function planSig(o){ return JSON.stringify({ s:o.strategy, r:o.rules, g:o.goals, m:o.metrics.map(x => [x.name,x.target,x.auto]), d:DAYS5.map(([k]) => { const d = o.days[k]||{}; return [d.theme,d.contacts,d.demos,(d.blocks||[]).map(b => [b.time,b.text])]; }), p:(o.prep||[]).map(x => [x.text,x.done]), f:o.followups, i:o.priorities, n:o.notes }); }
+  function planSig(o){ return JSON.stringify({ s:o.strategy, r:o.rules, g:o.goals, m:o.metrics.map(x => [x.name,x.target,x.auto]), d:DAYS5.map(([k]) => { const d = o.days[k]||{}; return [d.theme,d.contacts,d.demos,PERIODS.map(([pid]) => { const x = (d.periods||{})[pid]||{}; return [x.text,x.contacts,x.demos]; })]; }), p:(o.prep||[]).map(x => [x.text,x.done]), f:o.followups, i:o.priorities, n:o.notes }); }
   function planChangedSinceSubmit(dr){ const sub = latestSubmitted(dr.week); return sub ? planSig(sub) !== planSig(dr) : null; }
   const weekRange = w => `${parseYmd(w).toLocaleDateString(undefined,{month:"short",day:"numeric"})} – ${parseYmd(addDays(w,4)).toLocaleDateString(undefined,{month:"short",day:"numeric"})}`;
   const dayDate = (week, i) => parseYmd(addDays(week, i)).toLocaleDateString(undefined,{month:"numeric",day:"numeric"});
@@ -1636,9 +1711,13 @@
         ${open ? `
         <label>Zone / theme</label><input data-gpd="theme" data-day="${k}" value="${esc(d.theme||"")}" placeholder="e.g. Boone, Hwy 30 strip and the south side" list="townList">
         <div class="grid2"><div><label>Contacts</label><input data-gpd="contacts" data-day="${k}" value="${esc(d.contacts||"")}" inputmode="numeric"></div><div><label>Demos</label><input data-gpd="demos" data-day="${k}" value="${esc(d.demos||"")}" inputmode="numeric"></div></div>
-        <label>Schedule</label>
-        ${(d.blocks||[]).map(b => `<div class="sysrow"><input data-gpb="time" data-day="${k}" data-id="${b.id}" value="${esc(b.time)}" placeholder="9:00–12:00" style="flex:none;width:112px"><input data-gpb="text" data-day="${k}" data-id="${b.id}" value="${esc(b.text)}" placeholder="What happens"><button class="x2" data-gpact="delb" data-day="${k}" data-id="${b.id}" aria-label="Remove block">×</button></div>`).join("")}
-        <div class="actions"><button class="btn plain sm" data-gpact="addb" data-day="${k}">+ Add time block</button></div>` : ""}
+        <label>2-hour blocks <span class="muted">(goal: contacts / demos)</span></label>
+        ${PERIODS.map(([pid, lbl]) => { const x = (d.periods||{})[pid] || {}; return `<div style="padding:6px 0;border-bottom:1px dashed var(--line)">
+          <div class="row" style="align-items:center;gap:6px"><b style="flex:none;width:44px">${lbl}</b>
+            <input data-gpper="contacts" data-day="${k}" data-p="${pid}" value="${esc(x.contacts||"")}" inputmode="numeric" placeholder="C" style="flex:none;width:52px;padding:8px">
+            <input data-gpper="demos" data-day="${k}" data-p="${pid}" value="${esc(x.demos||"")}" inputmode="numeric" placeholder="D" style="flex:none;width:52px;padding:8px"><span class="small muted" style="flex:1">${blockSumNote(d, pid)}</span></div>
+          <input data-gpper="text" data-day="${k}" data-p="${pid}" value="${esc(x.text||"")}" placeholder="What this block is for" style="margin-top:6px"></div>`; }).join("")}
+        <div class="note">${periodSumLine(d)}</div>` : ""}
       </div>`;
     }).join("");
     return `
@@ -1646,6 +1725,7 @@
         <label style="margin-top:0">Plan for the week of</label>
         <select data-gp="week">${weeks.map(w => `<option value="${w}" ${w===dr.week?"selected":""}>${esc(weekRange(w))}${w===ws?" (this week)":w===addDays(ws,7)?" (next week)":""}${latestSubmitted(w)?" ✓":""}</option>`).join("")}</select>
         ${status}
+        <div class="actions"><button class="btn ghost sm" data-gpact="suggest">Get AI suggestions from past plans</button></div>
       </div>
       <div class="card"><h2>Targets</h2>
         <div class="grid2" style="grid-template-columns:1fr 1fr 1fr">
@@ -1690,6 +1770,13 @@
       </div>`;
   }
 
+  function blockSumNote(d, pid){ return ""; }
+  function periodSumLine(d){
+    const c = PERIODS.reduce((a,[pid]) => a + (parseFloat(((d.periods||{})[pid]||{}).contacts)||0), 0), dm = PERIODS.reduce((a,[pid]) => a + (parseFloat(((d.periods||{})[pid]||{}).demos)||0), 0);
+    const tc = parseFloat(d.contacts)||0, td = parseFloat(d.demos)||0;
+    const off = (tc && c !== tc) || (td && dm !== td);
+    return `Blocks add up to <b>${c}</b> contacts / <b>${dm}</b> demos${tc||td ? ` · day target ${tc||"–"} / ${td||"–"}` : ""}${off ? ` <span style="color:var(--warn)">— doesn't match</span>` : ""}`;
+  }
   function renderGamePlan(){ $("wkPlanView").innerHTML = viewGamePlan(); }
   $("wkPlanView").addEventListener("input", e => {
     const t = e.target, dr = draftFor(UI.gpWeek);
@@ -1697,6 +1784,7 @@
     else if (t.dataset.gpm) { const m = dr.metrics.find(x => x.id === t.dataset.id); if (m) m[t.dataset.gpm] = t.value; }
     else if (t.dataset.gpd) dr.days[t.dataset.day][t.dataset.gpd] = t.value;
     else if (t.dataset.gpb) { const b = dr.days[t.dataset.day].blocks.find(x => x.id === t.dataset.id); if (b) b[t.dataset.gpb] = t.value; }
+    else if (t.dataset.gpper) { const pr = dr.days[t.dataset.day].periods[t.dataset.p]; pr[t.dataset.gpper] = t.value; }
     else if (t.dataset.gpp) { const x = dr.prep.find(y => y.id === t.dataset.gpp); if (x) x.text = t.value; }
     else if (t.dataset.gpt) { S.settings[t.dataset.gpt] = t.value; save(); return; }
     else return;
@@ -1739,7 +1827,40 @@
     normalizePlan(p);
     return { day:p.days[k], label:DAYS5[dow-1][1] };
   }
-  function renderTodayPlanCard(){
+  function curPeriod(){ const h = new Date().getHours() + new Date().getMinutes()/60; return PERIODS.find(([, , a, z]) => h >= a && h < z) || null; }
+  function periodActual(d, a, z){
+    const start = parseYmd(d); start.setHours(a,0,0,0); const end = parseYmd(d); end.setHours(z,0,0,0);
+    let c = 0, dm = 0, untimed = 0;
+    visitsOn(d).forEach(({v}) => { if (!v.ts) { untimed++; return; } if (v.ts >= start.getTime() && v.ts < end.getTime()) { c++; if (v.outcome !== "contact") dm++; } });
+    return { c, dm, untimed };
+  }
+  function renderBlocksCard(){
+    const el = $("todayPlan"); if (!el) return;
+    const d = today(), dow = parseYmd(d).getDay();
+    if (dow === 0 || dow === 6) { el.classList.add("hide"); el.innerHTML = ""; return; }
+    const tp = todaysPlan(), plan = tp ? tp.day : null, day = dayData(d), pr = day.periods || {}, cp = curPeriod(), nowH = new Date().getHours() + new Date().getMinutes()/60;
+    el.classList.remove("hide");
+    el.innerHTML = `<h2>2-hour blocks <small>${tp ? esc(tp.label) : ""}${plan && plan.theme ? " · " + esc(plan.theme) : ""}</small></h2>
+      ${!tp ? `<div class="note" style="margin:0 0 6px">No game plan for this week yet — set goals here or build one in Week → Game Plan.</div>` : ""}
+      ${PERIODS.map(([pid, lbl, a, z]) => {
+        const pp = (plan && plan.periods && plan.periods[pid]) || {}, r = pr[pid] || {};
+        const goalC = r.contacts ?? pp.contacts ?? "", goalD = r.demos ?? pp.demos ?? "", text = r.text ?? pp.text ?? "";
+        const act = periodActual(d, a, z), isNow = cp && cp[0] === pid, past = nowH >= z;
+        const resBtns = ["hit","partial","miss"].map(v => `<button data-blk="result" data-p="${pid}" data-val="${v}" class="${r.result===v?"on":""} ${r.result===v&&v==="miss"?"bad":""}">${v === "hit" ? "Hit" : v === "partial" ? "Partial" : "Missed"}</button>`).join("");
+        return `<div class="blk ${isNow?"now":""} ${past?"past":""}" style="padding:10px;border-radius:12px;margin-top:8px;border:1px solid ${isNow?"var(--accent)":"var(--line)"};background:${isNow?"var(--soft)":"transparent"}">
+          <div class="row" style="align-items:center"><b style="flex:1">${lbl}${isNow ? ' <span class="tag" style="background:var(--accent);color:#fff">Now</span>' : ""}${r.result ? ` <span class="tag ${r.result==="hit"?"sale":r.result==="miss"?"due":"demo"}">${r.result==="hit"?"Hit":r.result==="miss"?"Missed":"Partial"}</span>` : ""}</b>
+            <span class="small muted" style="flex:none">logged ${act.c}C / ${act.dm}D</span></div>
+          <div class="row" style="gap:6px;margin-top:6px;align-items:center"><span class="small muted" style="flex:none">Goal</span>
+            <input data-blk="contacts" data-p="${pid}" value="${esc(goalC)}" inputmode="numeric" placeholder="C" style="flex:none;width:52px;padding:7px">
+            <input data-blk="demos" data-p="${pid}" value="${esc(goalD)}" inputmode="numeric" placeholder="D" style="flex:none;width:52px;padding:7px">
+            <input data-blk="text" data-p="${pid}" value="${esc(text)}" placeholder="What this block is for" style="padding:7px"></div>
+          ${(isNow || past) ? `<div class="pill" style="margin-top:8px">${resBtns}</div>
+            <input data-blk="note" data-p="${pid}" value="${esc(r.note||"")}" placeholder="${r.result==="miss"||r.result==="partial" ? "What got in the way, and what changes next block?" : "Note (optional)"}" style="margin-top:6px;padding:7px">` : ""}
+        </div>`; }).join("")}
+      <div class="note">Blocks hit today: <b>${PERIODS.filter(([pid]) => (pr[pid]||{}).result === "hit").length}</b> of ${PERIODS.filter(([, , , z]) => nowH >= z).length} finished. Visits logged in the app count toward the block they were logged in.</div>`;
+  }
+  function renderTodayPlanCard(){ renderBlocksCard(); }
+  function _oldPlanCard(){
     const el = $("todayPlan"); if (!el) return;
     const tp = todaysPlan();
     if (!tp || (!tp.day.theme && !(tp.day.blocks||[]).length)) { el.innerHTML = ""; el.classList.add("hide"); return; }
@@ -1749,6 +1870,19 @@
       ${(tp.day.contacts || tp.day.demos) ? `<div class="small muted" style="margin-bottom:6px">Target: ${esc(tp.day.contacts||"–")} contacts, ${esc(tp.day.demos||"–")} demos</div>` : ""}
       ${(tp.day.blocks||[]).filter(b => b.time || b.text).map(b => `<div class="small" style="padding:5px 0;border-bottom:1px dashed var(--line)"><b style="display:inline-block;min-width:92px">${esc(b.time)}</b>${esc(b.text)}</div>`).join("")}`;
   }
+
+  $("todayPlan").addEventListener("input", e => {
+    const t = e.target; if (!t.dataset.blk) return;
+    const d = today(), pr = { ...(dayData(d).periods||{}) }; pr[t.dataset.p] = { ...(pr[t.dataset.p]||{}), [t.dataset.blk]: t.value };
+    saveDay(d, { periods: pr });
+  });
+  $("todayPlan").addEventListener("click", e => {
+    const b = e.target.closest("button[data-blk]"); if (!b) return;
+    const d = today(), pr = { ...(dayData(d).periods||{}) }, cur = pr[b.dataset.p] || {};
+    pr[b.dataset.p] = { ...cur, result: cur.result === b.dataset.val ? null : b.dataset.val, checkedAt: Date.now() };
+    saveDay(d, { periods: pr }); renderBlocksCard();
+    if (window.aiFeedback && pr[b.dataset.p].result) window.aiFeedback(`2-hour block check-in (${PERIODS.find(x => x[0]===b.dataset.p)[1]})`, `Result: ${pr[b.dataset.p].result}`);
+  });
 
   // ---------- Review tab: plan vs actual + history ----------
   function planVsActualHtml(p, editable){
@@ -1773,7 +1907,7 @@
   }
   function planBodyHtml(p){
     const days = DAYS5.map(([k,l]) => { const dd = (p.days||{})[k]||{}; if (!dd.theme && !(dd.blocks||[]).length) return "";
-      return `<div style="margin-top:6px"><b>${l}</b>${dd.theme?` — ${esc(dd.theme)}`:""}${(dd.blocks||[]).map(b => `<div class="small" style="padding-left:8px">${esc(b.time)} ${esc(b.text)}</div>`).join("")}</div>`; }).join("");
+      return `<div style="margin-top:6px"><b>${l}</b>${dd.theme?` — ${esc(dd.theme)}`:""}${PERIODS.map(([pid,lbl]) => { const x = (dd.periods||{})[pid]||{}; return x.text||x.contacts||x.demos ? `<div class="small" style="padding-left:8px"><b>${lbl}</b> ${esc(x.contacts||"–")}C / ${esc(x.demos||"–")}D · ${esc(x.text||"")}</div>` : ""; }).join("")}</div>`; }).join("");
     return `${p.rules?`<label>Winning day rule</label><div class="small" style="white-space:pre-wrap">${esc(p.rules)}</div>`:""}
       ${p.strategy?`<label>Strategy</label><div class="small" style="white-space:pre-wrap">${esc(p.strategy)}</div>`:""}
       ${p.goals?`<label>Goals & why</label><div class="small" style="white-space:pre-wrap">${esc(p.goals)}</div>`:""}
@@ -1824,7 +1958,7 @@
     if (p.goals) L.push("Goals & why: " + p.goals);
     L.push("Metrics (target → actual): " + p.metrics.filter(m => m.name).map(m => `${m.name} ${m.target||"-"} → ${p.week > today() ? "-" : (m.auto ? weekActual(p.week, m.auto) : (act[m.id] ?? "-"))}`).join("; "));
     DAYS5.forEach(([k,l], i) => { const dd = (p.days||{})[k]||{}; const date = addDays(p.week, i); const s = date <= today() ? statsFor(date) : null;
-      if (dd.theme || (dd.blocks||[]).length) L.push(`${l}: ${dd.theme||""} | plan ${dd.contacts||"-"} contacts / ${dd.demos||"-"} demos${s ? ` | actual ${s.contacts} / ${s.demos}, ${s.hours}h` : ""} | ${(dd.blocks||[]).map(b => `${b.time} ${b.text}`).join("; ")}`); });
+      if (dd.theme || dd.periods) L.push(`${l}: ${dd.theme||""} | plan ${dd.contacts||"-"} contacts / ${dd.demos||"-"} demos${s ? ` | actual ${s.contacts} / ${s.demos}, ${s.hours}h` : ""} | blocks: ${PERIODS.map(([pid,lbl]) => { const x = (dd.periods||{})[pid]||{}; const r = s ? ((dayData(date).periods||{})[pid]||{}) : {}; return `${lbl} ${x.contacts||"-"}C/${x.demos||"-"}D ${x.text||""}${r.result?` [${r.result}${r.note?`: ${r.note}`:""}]`:""}`; }).join("; ")}`); });
     if ((p.prep||[]).length) L.push("Prep: " + p.prep.map(x => `${x.text}${x.done?" [done]":" [not done]"}`).join("; "));
     if (p.followups) L.push("Follow-ups: " + p.followups);
     if (p.priorities) L.push("Improving: " + p.priorities);
@@ -1836,11 +1970,166 @@
   const WEEKDAY_ONLY = ["prospecting","shutdown","basics"];
   function migrateDays(){
     let ch = false;
+    const pros = (S.systems||[]).find(x => x.id === "prospecting");
+    if (pros && !pros.steps.some(st => st.id === "st-2hr")) { pros.steps.splice(2, 0, { id:"st-2hr", text:"Checked in at every 2-hour block", slot:"evening" }); ch = true; }
     (S.systems||[]).forEach(sys => { if (!sys.days) { sys.days = WEEKDAY_ONLY.includes(sys.id) ? "weekdays" : "all"; ch = true; } });
     if (ch) save();
   }
   const isWeekend = d => [0,6].includes(parseYmd(d).getDay());
   const runsOn = (sys, d) => sys.days !== "weekdays" || !isWeekend(d);
+
+  // ================= LIVE AI COACH =================
+  const AI_KEY = "fieldsales.anthropicKey";
+  const AI_MODEL_CHAT = "claude-sonnet-5-5", AI_MODEL_FAST = "claude-haiku-5-5";
+  const aiKey = () => { try { return localStorage.getItem(AI_KEY) || ""; } catch { return ""; } };
+  if (!S.chat) S.chat = [];
+  const AI = { busy:false, lastAuto:0, queued:null, open:false };
+
+  const COACH_SYSTEM = `You are Isaac's live sales coach inside his Field Sales app. Isaac is 21, a B2B field rep selling supplemental insurance (Family Heritage / Globe Life, through Tuma Agencies) door to door to small businesses in Ames, Boone and nearby central Iowa towns. His team leader is Micah. He runs his life as systems and works his day in 2-hour blocks (8–10, 10–12, 12–2, 2–4, 4–6) with a goal for each block.
+
+How you coach:
+- Be critical and direct, Hormozi / Grant Cardone style. No flattery, no "great job", no cheerleading. If something is good, say so in five words and move to what would make it sharper.
+- Judge every input against his own targets, his winning-day rule, this week's strategy, his Back to the Basics checklist and his past results. Call out misalignment plainly: block goals that don't add up to the day target, vague goals ("prospecting") with no number, too much drive time, plans that repeat last week's misses, demos left to the afternoon, no team-meeting asks at 10+ employee businesses, follow-ups not scheduled.
+- Use his numbers. Cite the specific figure that proves your point.
+- Give the fix, not just the problem: the exact number, zone, step or wording to change.
+- Plain text only. No markdown, no headers, no bullet symbols unless he asks for a list. Short paragraphs.
+- Never invent data he didn't log. If the data is thin, say so.`;
+
+  function aiContext(){
+    const d = today(), T = targets(), ws = weekStart(d);
+    gpInit();
+    const L = [];
+    L.push(`NOW: ${new Date().toLocaleString()}${curPeriod() ? ` (block ${curPeriod()[1]})` : ""}. Open tab: ${UI.tab}${UI.tab==="week"?"/"+(UI.weekView||"plan"):""}${UI.tab==="systems"?"/"+(UI.sysView||""):""}.`);
+    L.push(`DAILY TARGETS: ${T.contacts} contacts, ${T.demos} demos, ${T.hours} hours; winning day = ${T.wins} of 3.`);
+    const st = statsFor(d), day = dayData(d);
+    L.push(`TODAY SO FAR: ${st.contacts} contacts, ${st.demos} demos, ${st.sales} sales, ${Math.round(liveHours(d)*10)/10}h.`);
+    if (!isWeekend(d)) {
+      const tp = todaysPlan(), pr = day.periods || {};
+      L.push("TODAY'S 2-HOUR BLOCKS: " + PERIODS.map(([pid,lbl,a,z]) => { const pp = (tp && tp.day.periods && tp.day.periods[pid]) || {}, r = pr[pid] || {}, act = periodActual(d,a,z); return `${lbl} goal ${r.contacts ?? pp.contacts ?? "-"}C/${r.demos ?? pp.demos ?? "-"}D "${r.text ?? pp.text ?? ""}" logged ${act.c}C/${act.dm}D${r.result ? ` result ${r.result}${r.note?` (${r.note})`:""}` : ""}`; }).join(" | "));
+    }
+    const sd = sdGet(d); const b3 = (sd.big3||[]).filter(x => x && x.text);
+    if (b3.length) L.push("BIG 3: " + b3.map(x => `${x.text}${x.done?" ✓":""}`).join("; "));
+    const r = day.review || {}; if (r.wins || r.misses || r.carry) L.push(`EVENING REVIEW: went well: ${r.wins||"-"} | fix: ${r.misses||"-"} | carry: ${r.carry||"-"}`);
+    L.push("LAST 7 DAYS: " + [7,6,5,4,3,2,1].map(n => { const dd = addDays(d,-n), s = statsFor(dd); return `${dd.slice(5)} ${s.contacts}C/${s.demos}D/${s.hours}h`; }).join(", "));
+    const I = insights(); L.push("APP'S READ: " + I.list.join(" "));
+    if (I.towns.length) L.push("BY TOWN (7d): " + I.towns.map(([t,x]) => `${t} ${x.c}C/${x.d}D`).join(", "));
+    const dr = S.gp.drafts[UI.gpWeek || defaultPlanWeek()];
+    if (dr) L.push("GAME PLAN BEING EDITED:\n" + planText({ ...dr, submittedAt: dr.updated || Date.now() }).replace(/^Week of [^\n]*\n/, `Week of ${weekRange(dr.week)} (draft)\n`));
+    const past = S.gp.submitted.filter(p => p.week < (dr ? dr.week : ws)).sort((a,b) => b.week.localeCompare(a.week) || b.submittedAt - a.submittedAt);
+    const seen = new Set(); past.filter(p => !seen.has(p.week) && seen.add(p.week)).slice(0,2).forEach(p => L.push("PREVIOUS PLAN + RESULTS:\n" + planText(p)));
+    const bt = bbTotal(ws), bw = bbWeek(ws); if (bt.rated) { const fi = BASICS.find(([n]) => n === bw.focus); L.push(`BACK TO THE BASICS: ${bt.total}/100 (${bt.rated}/25 rated)${fi ? `; focus basic #${fi[0]} ${fi[2]}` : ""}. Lowest: ${BASICS.filter(([n]) => typeof (bw.scores||{})[n] === "number").sort((a,b) => bw.scores[a[0]] - bw.scores[b[0]]).slice(0,3).map(([n,,tx]) => `#${n} ${tx} (${bw.scores[n]})`).join("; ")}`); }
+    const sys = dailySys().map(x => { const s7 = sevenDay(x); return s7.pct == null ? null : `${x.name} ${Math.round(s7.pct*100)}%${s7.friction?` (${s7.friction} friction)`:""}`; }).filter(Boolean);
+    if (sys.length) L.push("SYSTEMS 7-DAY: " + sys.join(", "));
+    return L.join("\n");
+  }
+
+  async function callClaude(messages, { model = AI_MODEL_CHAT, max = 600 } = {}){
+    const key = aiKey(); if (!key) throw { code:"nokey" };
+    let res;
+    try {
+      res = await fetch("https://api.anthropic.com/v1/messages", {
+        method:"POST",
+        headers:{ "x-api-key":key, "anthropic-version":"2023-06-01", "content-type":"application/json", "anthropic-dangerous-direct-browser-access":"true" },
+        body: JSON.stringify({ model, max_tokens:max, system: COACH_SYSTEM + "\n\nCURRENT DATA:\n" + aiContext(), messages })
+      });
+    } catch { throw { code:"offline" }; }
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok) throw { code: res.status === 401 ? "badkey" : (res.status === 429 || res.status === 529) ? "busy" : "error", message: (j.error && j.error.message) || res.statusText };
+    return (j.content || []).filter(c => c.type === "text").map(c => c.text).join("\n").trim();
+  }
+  const aiErr = e => e.code === "nokey" ? "Add your Anthropic API key to turn me on (tap the coach button)." : e.code === "badkey" ? "That API key was rejected. Check it in the coach settings." : e.code === "busy" ? "The AI is busy right now — try again in a minute." : e.code === "offline" ? "No connection right now." : `Something went wrong: ${e.message || "unknown error"}`;
+
+  // ---------- UI ----------
+  function pushChat(role, text, tag){ S.chat.push({ role, text, tag:tag||"", t:Date.now() }); if (S.chat.length > 60) S.chat = S.chat.slice(-60); save(); if (AI.open) renderChat(); }
+  function renderChat(){
+    const key = aiKey();
+    $("aiSetup").classList.toggle("hide", !!key);
+    $("aiChatArea").classList.toggle("hide", !key);
+    $("aiAutoChk").checked = S.settings.aiAuto !== false;
+    const box = $("aiMsgs");
+    box.innerHTML = S.chat.length ? S.chat.map(m => `<div class="msg ${m.role}">${m.tag ? `<div class="mtag">${esc(m.tag)}</div>` : ""}${esc(m.text).replace(/\n/g,"<br>")}</div>`).join("") + (AI.busy ? `<div class="msg assistant typing">Thinking…</div>` : "")
+      : `<div class="small muted" style="padding:10px">Ask me anything about your plan, your day or your numbers. I'll also pop up feedback as you fill things in.</div>`;
+    box.scrollTop = box.scrollHeight;
+  }
+  function openChat(){ AI.open = true; $("aiPanel").classList.remove("hide"); $("aiBubble").classList.add("hide"); renderChat(); setTimeout(() => { if (aiKey()) $("aiInput").focus(); }, 50); }
+  function closeChat(){ AI.open = false; $("aiPanel").classList.add("hide"); }
+  $("aiFab").addEventListener("click", () => AI.open ? closeChat() : openChat());
+  $("aiClose").addEventListener("click", closeChat);
+  $("aiBubble").addEventListener("click", openChat);
+  function bubble(text){
+    const b = $("aiBubble"); b.textContent = text; b.classList.remove("hide");
+    clearTimeout(bubble._t); bubble._t = setTimeout(() => b.classList.add("hide"), 15000);
+  }
+
+  async function sendChat(text){
+    text = (text||"").trim(); if (!text || AI.busy) return;
+    pushChat("user", text);
+    AI.busy = true; renderChat();
+    const hist = S.chat.slice(-12).map(m => ({ role: m.role === "user" ? "user" : "assistant", content: m.tag ? `[${m.tag}] ${m.text}` : m.text }));
+    while (hist.length && hist[0].role !== "user") hist.shift();
+    const merged = []; hist.forEach(m => { if (merged.length && merged[merged.length-1].role === m.role) merged[merged.length-1].content += "\n" + m.content; else merged.push({ ...m }); });
+    try { const out = await callClaude(merged, { model:AI_MODEL_CHAT, max:700 }); pushChat("assistant", out || "(no answer)"); }
+    catch (e) { pushChat("assistant", aiErr(e), "error"); }
+    AI.busy = false; renderChat();
+  }
+  $("aiForm").addEventListener("submit", e => { e.preventDefault(); const v = $("aiInput").value; $("aiInput").value = ""; sendChat(v); });
+  $("aiQuick").addEventListener("click", e => { const b = e.target.closest("button[data-q]"); if (b) sendChat(b.dataset.q); });
+  $("aiSaveKey").addEventListener("click", async () => {
+    const k = $("aiKeyInput").value.trim();
+    if (!/^sk-ant-/.test(k)) { $("aiKeyNote").textContent = "That doesn't look like an Anthropic key — it should start with sk-ant-"; return; }
+    try { localStorage.setItem(AI_KEY, k); } catch {}
+    $("aiKeyNote").textContent = "Checking the key…";
+    try { await callClaude([{ role:"user", content:"Reply with exactly: Coach is on." }], { model:AI_MODEL_FAST, max:20 }); $("aiKeyInput").value = ""; $("aiKeyNote").textContent = ""; pushChat("assistant", "Coach is on. I'll give you feedback as you fill in your plan and blocks — tap me anytime to talk."); renderChat(); }
+    catch (e) { if (e.code === "badkey") { try { localStorage.removeItem(AI_KEY); } catch {} } $("aiKeyNote").textContent = aiErr(e); }
+  });
+  $("aiRemoveKey").addEventListener("click", () => { try { localStorage.removeItem(AI_KEY); } catch {} renderChat(); toast("API key removed from this phone"); });
+  $("aiAutoChk").addEventListener("change", e => { S.settings.aiAuto = e.target.checked; save(); });
+  $("aiClear").addEventListener("click", () => { S.chat = []; save(); renderChat(); });
+
+  // ---------- automatic critical feedback on inputs ----------
+  async function aiFeedback(label, value){
+    if (!aiKey() || S.settings.aiAuto === false) return;
+    const v = String(value||"").trim(); if (!v) return;
+    const now = Date.now();
+    if (AI.busy || now - AI.lastAuto < 20000) { AI.queued = [label, v]; clearTimeout(AI.qt); AI.qt = setTimeout(() => { const q = AI.queued; AI.queued = null; if (q) aiFeedback(q[0], q[1]); }, Math.max(3000, 20000 - (now - AI.lastAuto))); return; }
+    AI.lastAuto = now; AI.busy = true;
+    try {
+      const out = await callClaude([{ role:"user", content:`I just entered this in the app.\nField: ${label}\nValue: "${v}"\n\nGive me one sharp, critical reaction in at most 2 sentences (under 45 words): is it aligned with my targets, rule, strategy and past results? If it's off, say exactly what to change. If it's solid, say what would make it sharper. No praise.` }], { model:AI_MODEL_FAST, max:150 });
+      if (out) { pushChat("assistant", out, `Feedback · ${label}`); if (!AI.open) bubble(out); }
+    } catch (e) { if (e.code === "badkey") bubble(aiErr(e)); }
+    AI.busy = false; if (AI.open) renderChat();
+  }
+  window.aiFeedback = aiFeedback;
+  const FIELD_LABELS = { strategy:"Weekly strategy", rules:"Winning-day rule", goals:"Goals & why", followups:"Key follow-ups", priorities:"What I'm improving", notes:"Plan notes" };
+  // game plan fields: react when a field is finished (change fires on blur; never re-render here)
+  $("wkPlanView").addEventListener("change", e => {
+    const t = e.target, dr = S.gp.drafts[UI.gpWeek];
+    if (!dr) return;
+    if (t.dataset.gpf) aiFeedback(FIELD_LABELS[t.dataset.gpf] || t.dataset.gpf, t.value);
+    else if (t.dataset.gpd === "theme") aiFeedback(`${t.dataset.day.toUpperCase()} zone`, t.value);
+    else if (t.dataset.gpper) { const d = dr.days[t.dataset.day], x = d.periods[t.dataset.p], lbl = PERIODS.find(p => p[0] === t.dataset.p)[1]; aiFeedback(`${t.dataset.day.toUpperCase()} ${lbl} block`, `${x.contacts||"-"} contacts, ${x.demos||"-"} demos — ${x.text||""}. Day target ${d.contacts||"-"}C/${d.demos||"-"}D.`); }
+    else if (t.dataset.gpt) aiFeedback("Daily target", `${t.dataset.gpt.replace("t","")}: ${t.value}`);
+  });
+  $("todayPlan").addEventListener("change", e => {
+    const t = e.target; if (!t.dataset.blk || t.dataset.blk === "result") return;
+    const lbl = PERIODS.find(p => p[0] === t.dataset.p)[1];
+    aiFeedback(`Today's ${lbl} block ${t.dataset.blk}`, t.value);
+  });
+  $("sysView").addEventListener("change", e => {
+    const t = e.target;
+    if (t.dataset.big3 != null) aiFeedback(`Big 3 #${+t.dataset.big3 + 1}`, t.value);
+    else if (t.dataset.f === "fix") aiFeedback("Midday adjustment", t.value);
+    else if (t.dataset.f === "firstMove") aiFeedback("Tomorrow's first move", t.value);
+    else if (t.dataset.fric) aiFeedback(`${(sysById(t.dataset.fric)||{}).name} friction`, t.value);
+  });
+  ["revWins","revMisses","revCarry","planFocus"].forEach(id => $(id).addEventListener("change", e => aiFeedback({ revWins:"Evening review — went well", revMisses:"Evening review — to fix", revCarry:"Carry over to tomorrow", planFocus:"Today's focus" }[id], e.target.value)));
+
+  // game plan buttons: suggestions + critique after submit
+  $("wkPlanView").addEventListener("click", e => {
+    const b = e.target.closest("[data-gpact]"); if (!b) return;
+    if (b.dataset.gpact === "suggest") { openChat(); sendChat("Look at the game plan I'm editing next to my previous plans and results. What should I change? Be specific and critical — zones, block goals, the math, and anything I keep repeating that isn't working."); }
+    if (b.dataset.gpact === "submit" && aiKey() && S.settings.aiAuto !== false) setTimeout(() => { openChat(); sendChat("I just submitted this game plan. Grade it A–F against my targets and past results, then give me the 3 biggest weaknesses and the fix for each."); }, 400);
+  });
 
   // ================= boot =================
   function renderAll(){
