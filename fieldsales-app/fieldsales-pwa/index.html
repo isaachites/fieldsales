@@ -27,7 +27,7 @@
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",Inter,system-ui,sans-serif;font-size:15px;line-height:1.45}
   body{padding:0 env(safe-area-inset-right) 0 env(safe-area-inset-left)}
-  header{position:sticky;top:0;z-index:500;background:var(--bg);padding:calc(10px + env(safe-area-inset-top)) 16px 8px;display:flex;align-items:flex-end;justify-content:space-between;gap:8px}
+  header{position:sticky;top:0;z-index:500;background:var(--bg);padding:calc(10px + env(safe-area-inset-top)) 16px 8px;display:flex;align-items:center;justify-content:space-between;gap:12px}
   header h1{font-size:22px;margin:0;font-weight:700;letter-spacing:-.02em}
   header .date{color:var(--muted);font-size:13px}
   .clock{font-variant-numeric:tabular-nums;font-size:13px;color:var(--good);font-weight:600}
@@ -142,12 +142,18 @@
   #aiQuick{display:flex;gap:6px;overflow-x:auto;padding:6px 12px}
   #aiQuick button{flex:none;border:1px solid var(--line);background:var(--bg);color:var(--ink);font:inherit;font-size:13px;padding:7px 10px;border-radius:16px;cursor:pointer}
   #aiForm{display:flex;gap:8px;padding:8px 12px 12px}
+  #avatarBtn{width:42px;height:42px;border-radius:50%;border:0;padding:0;background:var(--accent);color:#fff;font-weight:700;font-size:16px;cursor:pointer;flex:none;overflow:hidden;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,.15)}
+  #avatarBtn img,.bigav img{width:100%;height:100%;object-fit:cover}
+  .bigav{width:96px;height:96px;border-radius:50%;background:var(--accent);color:#fff;font-weight:700;font-size:34px;display:flex;align-items:center;justify-content:center;overflow:hidden;margin:6px auto 8px}
+  .daytype{display:flex;align-items:center;gap:10px}
+  .daytype select{font-weight:600}
   .install{background:var(--soft);border-radius:12px;padding:12px;font-size:14px;margin:10px 0}
 </style>
 </head>
 <body>
 <header>
-  <div>
+  <button id="avatarBtn" aria-label="Open profile"></button>
+  <div style="flex:1;min-width:0">
     <div class="date" id="hdrDate"></div>
     <h1 id="hdrTitle">Today</h1>
   </div>
@@ -162,6 +168,17 @@
 
   <!-- TODAY -->
   <section id="tab-today">
+    <div class="card daytype">
+      <span class="small muted" style="flex:none">Today is a</span>
+      <select id="dayType"><option value="fh">Family Heritage</option><option value="personal">Personal Day</option></select>
+    </div>
+    <div id="personalToday" class="hide">
+      <div class="card"><h2>Personal Day</h2>
+        <p class="small muted" style="margin:0">Work targets, 2-hour blocks and sales systems are off today. Your personal systems still run.</p>
+        <div class="actions"><button class="btn ghost sm" data-goto-sys="morning">Morning check-in</button><button class="btn ghost sm" data-goto-sys="midday">Midday</button><button class="btn ghost sm" data-goto-sys="evening">Evening</button></div>
+      </div>
+    </div>
+    <div id="workToday">
     <div class="card">
       <h2>Scoreboard <small id="scoreHint"></small></h2>
       <div class="score" id="score"></div>
@@ -204,6 +221,7 @@
       <textarea id="revMisses"></textarea>
       <label>Carry over to tomorrow</label>
       <textarea id="revCarry"></textarea>
+    </div>
     </div>
   </section>
 
@@ -454,6 +472,40 @@
   </div>
 </div>
 
+<!-- Profile sheet -->
+<div class="sheet-bg" id="profileBg">
+  <div class="sheet" id="profileSheet">
+    <div class="top"><h3>Profile</h3><button class="x" id="profClose" aria-label="Close">×</button></div>
+    <div class="bigav" id="profAvatar"></div>
+    <div style="text-align:center">
+      <label class="btn plain sm" style="display:inline-block;margin:0;color:var(--ink);font-size:14px">Change photo<input type="file" id="profPhoto" accept="image/*" class="hide"></label>
+      <button class="btn plain sm hide" id="profPhotoRemove">Remove</button>
+    </div>
+    <div class="score" id="profStats" style="margin-top:14px"></div>
+    <label>Name</label><input data-prof="name" autocomplete="off">
+    <div class="grid2">
+      <div><label>Title</label><input data-prof="title" placeholder="Independent agent" autocomplete="off"></div>
+      <div><label>Started</label><input data-prof="start" type="month"></div>
+    </div>
+    <label>Company</label><input data-prof="company" autocomplete="off">
+    <div class="grid2">
+      <div><label>Team leader</label><input data-prof="leader" autocomplete="off"></div>
+      <div><label>Territory</label><input data-prof="territory" autocomplete="off"></div>
+    </div>
+    <div class="grid2">
+      <div><label>Phone</label><input data-prof="phone" inputmode="tel" autocomplete="off"></div>
+      <div><label>Email</label><input data-prof="email" inputmode="email" autocomplete="off"></div>
+    </div>
+    <label>My why</label><textarea data-prof="why" placeholder="Why I'm doing this — read it when the day gets hard"></textarea>
+    <label>Big goal for this year</label><input data-prof="goal" autocomplete="off">
+    <div class="note" id="profSaved"></div>
+    <div class="actions" style="margin-top:16px">
+      <button class="btn plain sm" id="profTargets">Targets & backup</button>
+      <button class="btn plain sm" id="profCoach">Coach settings</button>
+    </div>
+  </div>
+</div>
+
 <!-- confirm dialog -->
 <div class="sheet-bg" id="confirmBg" style="align-items:center">
   <div class="sheet" style="border-radius:16px;max-width:380px;margin:16px">
@@ -624,7 +676,7 @@
       ? due.map(b => `<div class="item" data-open="${esc(b.id)}"><div class="main"><div class="t">${esc(b.name)}</div><div class="s">${esc(b.next || "Follow up")} · ${esc(b.town||"")}</div></div><span class="tag due">${b.followUp === today() ? "Today" : esc(niceDate(b.followUp))}</span></div>`).join("")
       : `<div class="empty">Nothing due.</div>`;
   }
-  function renderToday(){ renderScore(); renderTodayPlanCard(); renderPlan(); renderDue(); }
+  function renderToday(){ applyDayType(); renderScore(); renderTodayPlanCard(); renderPlan(); renderDue(); }
 
   $("clockBtn").addEventListener("click", () => {
     const d = today(), day = dayData(d);
@@ -1086,6 +1138,7 @@
   });
   const saveSet = now(() => {
     Object.assign(S.settings, { tContacts:$("tContacts").value, tDemos:$("tDemos").value, tHours:$("tHours").value, tWins:$("tWins").value, sName:$("sName").value });
+    if (S.profile) { S.profile.name = $("sName").value; renderAvatar(); }
     save(); $("setSaved").textContent = "Saved";
   }, 400);
   ["tContacts","tDemos","tHours","tWins","sName"].forEach(id => $(id).addEventListener("input", saveSet));
@@ -1179,7 +1232,7 @@
   }
   function slotCards(slot, d){
     const list = dailySys().filter(sys => runsOn(sys, d));
-    const off = isWeekend(d) && dailySys().some(sys => !runsOn(sys, d)) && slot !== "midday" ? `<div class="note" style="margin:6px 2px">Weekend: work systems (${dailySys().filter(sys => !runsOn(sys, d)).map(x => esc(x.name)).join(", ")}) are off today.</div>` : "";
+    const off = dayType(d) === "personal" && dailySys().some(sys => !runsOn(sys, d)) && slot !== "midday" ? `<div class="note" style="margin:6px 2px">Personal Day: work systems (${dailySys().filter(sys => !runsOn(sys, d)).map(x => esc(x.name)).join(", ")}) are off today.</div>` : "";
     return off + list.map(sys => {
       const steps = sys.steps.filter(st => st.slot === slot);
       if (!steps.length) return "";
@@ -1223,14 +1276,14 @@
     const x = sdGet(d), st = statsFor(d), T = targets(), lh = liveHours(d);
     const ms = dailySys().filter(sys => runsOn(sys, d)).map(sys => { const steps = sys.steps.filter(s => s.slot === "morning"); if (!steps.length) return ""; const c = x.checks||{}; const done = steps.filter(s => c[s.id]==="done").length, tot = steps.filter(s => c[s.id]!=="na").length; return `<div class="small" style="padding:3px 0">${esc(sys.name)} (morning): <b>${done}/${tot}</b></div>`; }).join("");
     return `
-      ${isWeekend(d) ? `<div class="card"><h2>Weekend</h2><p class="small muted" style="margin:0">No sales targets today. Use midday to check your Big 3 and recharge.</p></div>` : `<div class="card"><h2>Scoreboard so far</h2><div class="score">${statBox("Contacts", st.contacts, T.contacts)}${statBox("Demos", st.demos, T.demos)}${statBox("Hours", lh, T.hours, fmtH)}</div></div>`}
+      ${dayType(d) === "personal" ? `<div class="card"><h2>Personal Day</h2><p class="small muted" style="margin:0">No sales targets today. Use midday to check your Big 3 and recharge.</p></div>` : `<div class="card"><h2>Scoreboard so far</h2><div class="score">${statBox("Contacts", st.contacts, T.contacts)}${statBox("Demos", st.demos, T.demos)}${statBox("Hours", lh, T.hours, fmtH)}</div></div>`}
       <div class="card"><h2>Big 3</h2>${big3Html(d, false)}</div>
       <div class="card"><h2>Am I on track?</h2>
         ${pills("track", ["on","off"], x.track, { labels:{on:"On track", off:"Off track"}, bad:"off" })}
         <label>${x.track === "off" ? "What I'm changing this afternoon" : "Anything to adjust? (optional)"}</label>
         <input data-f="fix" value="${esc(x.fix||"")}">
         ${ms ? `<label>Morning systems</label>${ms}` : ""}
-        ${!isWeekend(d) ? `<label>2-hour blocks so far</label><div class="small">${PERIODS.filter(([, , , z]) => new Date().getHours() >= z).map(([pid,lbl]) => { const r = (dayData(d).periods||{})[pid]||{}; return `${lbl}: <b>${r.result ? (r.result==="hit"?"Hit":r.result==="miss"?"Missed":"Partial") : "not checked in"}</b>`; }).join(" · ") || "First block still running"}</div><div class="actions"><button class="btn ghost sm" data-act="goto" data-tab="today">Open 2-hour blocks</button></div>` : ""}
+        ${dayType(d) !== "personal" ? `<label>2-hour blocks so far</label><div class="small">${PERIODS.filter(([, , , z]) => new Date().getHours() >= z).map(([pid,lbl]) => { const r = (dayData(d).periods||{})[pid]||{}; return `${lbl}: <b>${r.result ? (r.result==="hit"?"Hit":r.result==="miss"?"Missed":"Partial") : "not checked in"}</b>`; }).join(" · ") || "First block still running"}</div><div class="actions"><button class="btn ghost sm" data-act="goto" data-tab="today">Open 2-hour blocks</button></div>` : ""}
       </div>
       ${checkinBtn("midday", d)}`;
   }
@@ -1257,13 +1310,13 @@
   function viewManage(){
     const list = (S.systems||[]).map(sys => {
       const open = UI.sysOpen[sys.id], sd7 = sysCadenceStat(sys), last = sys.log[sys.log.length-1] || { v:1 };
-      const head = `<div class="item" data-act="toggle" data-sys="${esc(sys.id)}"><div class="main"><div class="t">${esc(sys.name)}${sys.active===false?' <span class="tag">Archived</span>':""}</div><div class="s">${esc(sys.cadence === "daily" ? (sys.days === "weekdays" ? "Weekdays" : "Daily") : "Weekly")} · v${last.v} · ${esc(sd7)}</div></div><span class="muted">${open?"▴":"▾"}</span></div>`;
+      const head = `<div class="item" data-act="toggle" data-sys="${esc(sys.id)}"><div class="main"><div class="t">${esc(sys.name)}${sys.active===false?' <span class="tag">Archived</span>':""}</div><div class="s">${esc(sys.cadence === "daily" ? (sys.days === "weekdays" ? "Work days" : "Daily") : "Weekly")} · v${last.v} · ${esc(sd7)}</div></div><span class="muted">${open?"▴":"▾"}</span></div>`;
       if (!open) return head;
       return head + `<div class="box" style="margin:4px 0 12px">
         <label>Name</label><input data-sysf="name" data-sys="${esc(sys.id)}" value="${esc(sys.name)}">
         <label>Purpose (the result it produces)</label><textarea data-sysf="purpose" data-sys="${esc(sys.id)}" style="min-height:56px">${esc(sys.purpose||"")}</textarea>
         <label>Metric</label><input data-sysf="metric" data-sys="${esc(sys.id)}" value="${esc(sys.metric||"")}">
-        ${sys.cadence === "daily" ? `<label>Runs</label><select data-runs="${esc(sys.id)}"><option value="all" ${sys.days!=="weekdays"?"selected":""}>Every day</option><option value="weekdays" ${sys.days==="weekdays"?"selected":""}>Weekdays only</option></select>` : ""}
+        ${sys.cadence === "daily" ? `<label>Runs</label><select data-runs="${esc(sys.id)}"><option value="all" ${sys.days!=="weekdays"?"selected":""}>Every day</option><option value="weekdays" ${sys.days==="weekdays"?"selected":""}>Family Heritage days only</option></select>` : ""}
         <label>Cadence</label><select data-cad="${esc(sys.id)}"><option value="daily" ${sys.cadence==="daily"?"selected":""}>Daily</option><option value="weekly" ${sys.cadence==="weekly"?"selected":""}>Weekly</option></select>
         <label>Steps</label>
         ${sys.steps.map(st => `<div class="sysrow"><input data-steptext="${esc(st.id)}" data-sys="${esc(sys.id)}" value="${esc(st.text)}"><select data-stepslot="${esc(st.id)}" data-sys="${esc(sys.id)}">${(sys.cadence==="weekly"?["weekly"]:["morning","midday","evening"]).map(sl => `<option value="${sl}" ${st.slot===sl?"selected":""}>${SLOTS[sl]}</option>`).join("")}</select><button class="x2" data-act="delstep" data-sys="${esc(sys.id)}" data-id="${esc(st.id)}" aria-label="Remove step">×</button></div>`).join("")}
@@ -1836,12 +1889,12 @@
   }
   function renderBlocksCard(){
     const el = $("todayPlan"); if (!el) return;
-    const d = today(), dow = parseYmd(d).getDay();
-    if (dow === 0 || dow === 6) { el.classList.add("hide"); el.innerHTML = ""; return; }
-    const tp = todaysPlan(), plan = tp ? tp.day : null, day = dayData(d), pr = day.periods || {}, cp = curPeriod(), nowH = new Date().getHours() + new Date().getMinutes()/60;
+    const d = today();
+    if (dayType(d) === "personal") { el.classList.add("hide"); el.innerHTML = ""; return; }
+    const tp = todaysPlan(), plan = tp ? tp.day : null, isWkd = isWeekend(d), day = dayData(d), pr = day.periods || {}, cp = curPeriod(), nowH = new Date().getHours() + new Date().getMinutes()/60;
     el.classList.remove("hide");
     el.innerHTML = `<h2>2-hour blocks <small>${tp ? esc(tp.label) : ""}${plan && plan.theme ? " · " + esc(plan.theme) : ""}</small></h2>
-      ${!tp ? `<div class="note" style="margin:0 0 6px">No game plan for this week yet — set goals here or build one in Week → Game Plan.</div>` : ""}
+      ${!tp ? `<div class="note" style="margin:0 0 6px">${isWkd ? "Weekend work day — set your block goals here." : "No game plan for this week yet — set goals here or build one in Week → Game Plan."}</div>` : ""}
       ${PERIODS.map(([pid, lbl, a, z]) => {
         const pp = (plan && plan.periods && plan.periods[pid]) || {}, r = pr[pid] || {};
         const goalC = r.contacts ?? pp.contacts ?? "", goalD = r.demos ?? pp.demos ?? "", text = r.text ?? pp.text ?? "";
@@ -1976,7 +2029,7 @@
     if (ch) save();
   }
   const isWeekend = d => [0,6].includes(parseYmd(d).getDay());
-  const runsOn = (sys, d) => sys.days !== "weekdays" || !isWeekend(d);
+  const runsOn = (sys, d) => sys.days !== "weekdays" || dayType(d) !== "personal";
 
   // ================= LIVE AI COACH =================
   const AI_KEY = "fieldsales.anthropicKey";
@@ -2003,7 +2056,8 @@ How you coach:
     L.push(`DAILY TARGETS: ${T.contacts} contacts, ${T.demos} demos, ${T.hours} hours; winning day = ${T.wins} of 3.`);
     const st = statsFor(d), day = dayData(d);
     L.push(`TODAY SO FAR: ${st.contacts} contacts, ${st.demos} demos, ${st.sales} sales, ${Math.round(liveHours(d)*10)/10}h.`);
-    if (!isWeekend(d)) {
+    L.push(`DAY TYPE: ${dayType(d) === "personal" ? "Personal Day (not working)" : "Family Heritage work day"}.`);
+    if (dayType(d) !== "personal") {
       const tp = todaysPlan(), pr = day.periods || {};
       L.push("TODAY'S 2-HOUR BLOCKS: " + PERIODS.map(([pid,lbl,a,z]) => { const pp = (tp && tp.day.periods && tp.day.periods[pid]) || {}, r = pr[pid] || {}, act = periodActual(d,a,z); return `${lbl} goal ${r.contacts ?? pp.contacts ?? "-"}C/${r.demos ?? pp.demos ?? "-"}D "${r.text ?? pp.text ?? ""}" logged ${act.c}C/${act.dm}D${r.result ? ` result ${r.result}${r.note?` (${r.note})`:""}` : ""}`; }).join(" | "));
     }
@@ -2131,6 +2185,78 @@ How you coach:
     if (b.dataset.gpact === "submit" && aiKey() && S.settings.aiAuto !== false) setTimeout(() => { openChat(); sendChat("I just submitted this game plan. Grade it A–F against my targets and past results, then give me the 3 biggest weaknesses and the fix for each."); }, 400);
   });
 
+
+  // ================= DAY TYPE + PROFILE =================
+  function dayType(d){ return ((S.days||{})[d] || {}).type || "fh"; }
+  function applyDayType(){
+    const d = today(), t = dayType(d);
+    $("dayType").value = t;
+    $("workToday").classList.toggle("hide", t === "personal");
+    $("personalToday").classList.toggle("hide", t !== "personal");
+  }
+  $("dayType").addEventListener("change", e => {
+    saveDay(today(), { type: e.target.value });
+    applyDayType(); renderAll();
+    toast(e.target.value === "personal" ? "Personal Day — work systems are off today" : "Family Heritage day");
+  });
+  $("personalToday").addEventListener("click", e => { const b = e.target.closest("[data-goto-sys]"); if (!b) return; UI.sysView = b.dataset.gotoSys; setTab("systems"); });
+
+  const PHOTO_KEY = "fieldsales.photo";
+  const getPhoto = () => { try { return localStorage.getItem(PHOTO_KEY) || ""; } catch { return ""; } };
+  function profInit(){
+    if (!S.profile) {
+      S.profile = { name: S.settings.sName || "Isaac", title:"Independent agent", company:"Family Heritage (Globe Life) — Tuma Agencies", leader:"Micah", territory:"Ames, Boone", phone:"", email:"", start:"", why:"", goal:"" };
+      save();
+    }
+  }
+  const initials = n => (n||"").trim().split(/\s+/).filter(Boolean).slice(0,2).map(w => w[0].toUpperCase()).join("") || "•";
+  function renderAvatar(){
+    const ph = getPhoto(), n = (S.profile||{}).name;
+    const html = ph ? `<img src="${ph}" alt="">` : esc(initials(n));
+    $("avatarBtn").innerHTML = html; $("profAvatar").innerHTML = html;
+    $("profPhotoRemove").classList.toggle("hide", !ph);
+  }
+  function profStats(){
+    let visits = 0, demos = 0, sales = 0; const days = new Set();
+    S.biz.forEach(b => (b.visits||[]).forEach(v => { visits++; days.add(v.date); if (v.outcome !== "contact") demos++; if (v.outcome === "sale") sales++; }));
+    const T = targets(); let wins = 0;
+    days.forEach(d => { const st = statsFor(d); if ([st.contacts>=T.contacts, st.demos>=T.demos, st.hours>=T.hours].filter(Boolean).length >= T.wins) wins++; });
+    $("profStats").innerHTML = `<div class="stat"><b>${S.biz.length}</b><span>Businesses</span></div><div class="stat"><b>${demos}</b><span>Demos</span></div><div class="stat"><b>${sales}</b><span>Sales</span></div>`
+      + `<div class="stat" style="grid-column:span 3"><span>${visits} visits logged · ${days.size} day${days.size===1?"":"s"} in the field · ${wins} winning day${wins===1?"":"s"}</span></div>`;
+  }
+  function openProfile(){
+    profInit();
+    document.querySelectorAll("[data-prof]").forEach(el => { if (document.activeElement !== el) el.value = S.profile[el.dataset.prof] || ""; });
+    renderAvatar(); profStats(); $("profSaved").textContent = "";
+    $("profileBg").classList.add("open"); $("profileSheet").scrollTop = 0;
+  }
+  const closeProfile = () => $("profileBg").classList.remove("open");
+  $("avatarBtn").addEventListener("click", openProfile);
+  $("profClose").addEventListener("click", closeProfile);
+  $("profileBg").addEventListener("click", e => { if (e.target === $("profileBg")) closeProfile(); });
+  $("profileSheet").addEventListener("input", e => {
+    const k = e.target.dataset.prof; if (!k) return;
+    S.profile[k] = e.target.value;
+    if (k === "name") { S.settings.sName = e.target.value; renderAvatar(); }
+    save(); $("profSaved").textContent = "Saved";
+  });
+  $("profPhoto").addEventListener("change", e => {
+    const f = e.target.files[0]; if (!f) return;
+    const img = new Image(), url = URL.createObjectURL(f);
+    img.onload = () => {
+      const c = document.createElement("canvas"), sz = 240, sc = Math.max(sz/img.width, sz/img.height);
+      c.width = sz; c.height = sz; const ctx = c.getContext("2d");
+      ctx.drawImage(img, (sz - img.width*sc)/2, (sz - img.height*sc)/2, img.width*sc, img.height*sc);
+      try { localStorage.setItem(PHOTO_KEY, c.toDataURL("image/jpeg", 0.82)); } catch { toast("Couldn't save that photo"); }
+      URL.revokeObjectURL(url); renderAvatar();
+    };
+    img.onerror = () => toast("Couldn't read that image");
+    img.src = url; e.target.value = "";
+  });
+  $("profPhotoRemove").addEventListener("click", () => { try { localStorage.removeItem(PHOTO_KEY); } catch {} renderAvatar(); });
+  $("profTargets").addEventListener("click", () => { closeProfile(); setTab("week"); setWeekView("review"); setTimeout(() => $("tContacts").scrollIntoView({ behavior:"smooth", block:"center" }), 100); });
+  $("profCoach").addEventListener("click", () => { closeProfile(); openChat(); });
+
   // ================= boot =================
   function renderAll(){
     renderToday(); renderBizList();
@@ -2145,6 +2271,8 @@ How you coach:
   seedBasics();
   gpInit();
   migrateDays();
+  profInit();
+  renderAvatar();
   renderHeader(); renderAll();
   routeHash();
   window.addEventListener("hashchange", routeHash);
