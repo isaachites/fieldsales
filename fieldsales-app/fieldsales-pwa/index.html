@@ -173,9 +173,15 @@
       <select id="dayType"><option value="fh">Family Heritage</option><option value="personal">Personal Day</option></select>
     </div>
     <div id="personalToday" class="hide">
-      <div class="card"><h2>Personal Day</h2>
-        <p class="small muted" style="margin:0">Work targets, 2-hour blocks and sales systems are off today. Your personal systems still run.</p>
-        <div class="actions"><button class="btn ghost sm" data-goto-sys="morning">Morning check-in</button><button class="btn ghost sm" data-goto-sys="midday">Midday</button><button class="btn ghost sm" data-goto-sys="evening">Evening</button></div>
+      <div class="card"><h2>Today's focus <small>Personal Day</small></h2>
+        <p class="small muted" style="margin:0 0 4px">No blocks, no targets — just what you're locking in on today.</p>
+        <div id="pFocus"></div>
+        <div class="actions"><button class="btn plain sm" data-pf="add">+ Add</button></div>
+      </div>
+      <div class="card devCard"></div>
+      <div class="card"><h2>Check-ins</h2>
+        <p class="small muted" style="margin:0">Your personal systems still run. Work systems are off today.</p>
+        <div class="actions"><button class="btn ghost sm" data-goto-sys="morning">Morning</button><button class="btn ghost sm" data-goto-sys="midday">Midday</button><button class="btn ghost sm" data-goto-sys="evening">Evening</button></div>
       </div>
     </div>
     <div id="workToday">
@@ -222,6 +228,7 @@
       <label>Carry over to tomorrow</label>
       <textarea id="revCarry"></textarea>
     </div>
+    <div class="card devCard"></div>
     </div>
   </section>
 
@@ -366,6 +373,8 @@
         <div><label>Hours target / day</label><input id="tHours" type="number" min="0" step="0.5" inputmode="decimal"></div>
         <div><label>Wins needed (of 3)</label><input id="tWins" type="number" min="1" max="3" inputmode="numeric"></div>
       </div>
+      <label>Development target (minutes / day)</label>
+      <input id="sDev" type="number" min="0" inputmode="numeric">
       <label>My name (for messages)</label>
       <input id="sName" placeholder="Isaac">
       <div class="note" id="setSaved"></div>
@@ -676,7 +685,7 @@
       ? due.map(b => `<div class="item" data-open="${esc(b.id)}"><div class="main"><div class="t">${esc(b.name)}</div><div class="s">${esc(b.next || "Follow up")} · ${esc(b.town||"")}</div></div><span class="tag due">${b.followUp === today() ? "Today" : esc(niceDate(b.followUp))}</span></div>`).join("")
       : `<div class="empty">Nothing due.</div>`;
   }
-  function renderToday(){ applyDayType(); renderScore(); renderTodayPlanCard(); renderPlan(); renderDue(); }
+  function renderToday(){ applyDayType(); renderScore(); renderTodayPlanCard(); renderPlan(); renderDue(); renderPersonal(); renderDev(); }
 
   $("clockBtn").addEventListener("click", () => {
     const d = today(), day = dayData(d);
@@ -688,7 +697,7 @@
     renderScore();
   });
   $("hoursInput").addEventListener("change", e => { const v = parseFloat(e.target.value); saveDay(today(), { hours: isFinite(v) ? v : 0 }); renderScore(); });
-  setInterval(() => { if (dayData(today()).startedAt) renderScore(); if (UI.tab === "today" && !(document.activeElement && document.activeElement.dataset && document.activeElement.dataset.blk)) renderBlocksCard(); }, 60000);
+  setInterval(() => { if (dayData(today()).startedAt) renderScore(); if (UI.tab === "today" && !(document.activeElement && document.activeElement.dataset && document.activeElement.dataset.blk)) renderBlocksCard(); if (UI.tab === "today" && S.devTimer && !(document.activeElement && document.activeElement.dataset && document.activeElement.dataset.devf)) renderDev(); }, 60000);
   document.addEventListener("visibilitychange", () => { if (!document.hidden) { renderHeader(); if (UI.tab === "today") renderToday(); } });
 
   const savePlan = now(() => { const d = today(); saveDay(d, { plan:{ ...(dayData(d).plan||{}), towns:$("planTowns").value, focus:$("planFocus").value } }); $("planSaved").textContent = "saved"; }, 500);
@@ -1105,6 +1114,7 @@
     const T = targets();
     [["tContacts",T.contacts],["tDemos",T.demos],["tHours",T.hours],["tWins",T.wins]].forEach(([id,v]) => { if (document.activeElement !== $(id)) $(id).value = v; });
     if (document.activeElement !== $("sName")) $("sName").value = S.settings.sName || "";
+    if (document.activeElement !== $("sDev")) $("sDev").value = devTarget();
     const past = Object.entries(S.weeks).filter(([w,x]) => w !== nw && x.text).sort((a,b) => b[0].localeCompare(a[0]));
     renderSysReview();
     renderPlanReview();
@@ -1142,6 +1152,7 @@
     save(); $("setSaved").textContent = "Saved";
   }, 400);
   ["tContacts","tDemos","tHours","tWins","sName"].forEach(id => $(id).addEventListener("input", saveSet));
+  $("sDev").addEventListener("input", e => { S.settings.devTarget = e.target.value; save(); });
 
   // ---- backup / restore ----
   $("exportBtn").addEventListener("click", async () => {
@@ -1175,8 +1186,8 @@
       steps:[["Agency call (Mon/Wed 8:00, Fri 9:00)","evening"],["At first business by 9:00","evening"],["Follow-ups before new doors","evening"],["Worked one town, densest areas first","evening"],["Logged every visit as it happened","evening"],["Asked the systems question on demos & friendly no's","evening"]] },
     { id:"fitness", name:"Fitness", cadence:"daily", purpose:"Hit my weight target and have the energy for 8+ hour days.", metric:"Workouts this week + weekly weigh-in trend",
       steps:[["Gym session (if scheduled)","morning"],["Followed meal plan","evening"],["Protein every meal","evening"],["Hit water target","evening"],["No eating after cutoff","evening"]] },
-    { id:"faith", name:"Faith", cadence:"daily", purpose:"Stay rooted and grow as a leader, not just perform the role.", metric:"Scripture & prayer streak + BILD sessions this week",
-      steps:[["Scripture reading","morning"],["Prayer","morning"],["BILD study block (if scheduled)","evening"],["Church leadership prep (if needed)","evening"]] },
+    { id:"faith", name:"Development", cadence:"daily", purpose:"Get better every day — BILD work, study, and the skills I'm building.", metric:"Development minutes vs daily target",
+      steps:[["Development block (BILD work or study)","evening"],["Read or studied something that sharpens me","evening"],["Logged what I worked on","evening"]] },
     { id:"shutdown", name:"Shutdown", cadence:"daily", purpose:"Close the workday cleanly so nothing lives in my head overnight.", metric:"Steps completed",
       steps:[["Ended shift clock","evening"],["Logged any missed visits","evening"],["Follow-up date on every non-sale","evening"],["Evening review done (Today tab)","evening"],["Phone away on time","evening"]] },
     { id:"finances", name:"Finances", cadence:"weekly", purpose:"Know my numbers and move toward my financial goals instead of guessing.", metric:"Weekly check done + income logged",
@@ -1424,6 +1435,7 @@
     const bt = bbTotal(weekStart(today())), bpt = bbTotal(addDays(weekStart(today()), -7));
     if (bt.rated) ins.push(`Back to the Basics: ${bt.total}/100 (${grade(bt.total)})${bpt.rated ? `, last week ${bpt.total}` : ""}. ${bt.rated < 25 ? `${25-bt.rated} basics still unrated — finish scoring in Systems → Basics.` : ""}`);
     else ins.push("Back to the Basics not scored this week yet — do it in Systems → Basics.");
+    { const wk = devWeek(weekStart(today())); const m = devMins(wk); ins.push(m ? `Development: ${fmtMins(m)} this week across ${wk.length} session${wk.length===1?"":"s"} (target ${fmtMins(devTarget()*7)} if daily).` : "No development time logged this week."); }
     if (scores.length) ins.push(`Average day score ${ (scores.reduce((a,b)=>a+b,0)/scores.length).toFixed(1) } across ${scores.length} day${scores.length===1?"":"s"}.`);
     if (b3.length) ins.push(`Big 3: ${b3.filter(x => x.done).length} of ${b3.length} priorities completed.`);
     const notes = rows.flatMap(r => r.s7.notes.map(n => `${r.sys.name} — ${n}`));
@@ -1484,6 +1496,8 @@
       L.push("", `BACK TO THE BASICS (company checklist, 25 basics scored 0–4, max 100): ${bt.rated ? `${bt.total}/100 (${grade(bt.total)}), ${bt.rated}/25 rated` : "not scored"}${bpt.rated ? ` | last week ${bpt.total}` : ""}`);
       BASICS.slice().sort((a,b)=>a[0]-b[0]).forEach(([n,,tx]) => { if (typeof bsc[n] === "number") L.push(`${n}. ${tx}: ${bsc[n]}`); });
       const fi = BASICS.find(([n]) => n === bw.focus); if (fi) L.push(`Focus basic this week: #${fi[0]} ${fi[2]}`); }
+    { const wk = devWeek(ws); if (wk.length) { L.push("", `DEVELOPMENT THIS WEEK: ${fmtMins(devMins(wk))} (daily target ${devTarget()} min)`); wk.forEach(x => L.push(`- ${x.date} ${x.area} ${x.mins}m${x.text?`: ${x.text}`:""}`)); } }
+    L.push(`Personal days this week: ${[0,1,2,3,4,5,6].map(i => addDays(ws,i)).filter(x => x <= d && dayType(x) === "personal").length}`);
     const changes = activeSys().flatMap(sys => sys.log.filter(l => l.v > 1).slice(-2).map(l => `${sys.name} v${l.v} (${l.date}): ${l.text}`));
     if (changes.length) { L.push("", "RECENT SYSTEM CHANGES"); changes.forEach(c => L.push("- " + c)); }
     gpInit();
@@ -2061,6 +2075,8 @@ How you coach:
       const tp = todaysPlan(), pr = day.periods || {};
       L.push("TODAY'S 2-HOUR BLOCKS: " + PERIODS.map(([pid,lbl,a,z]) => { const pp = (tp && tp.day.periods && tp.day.periods[pid]) || {}, r = pr[pid] || {}, act = periodActual(d,a,z); return `${lbl} goal ${r.contacts ?? pp.contacts ?? "-"}C/${r.demos ?? pp.demos ?? "-"}D "${r.text ?? pp.text ?? ""}" logged ${act.c}C/${act.dm}D${r.result ? ` result ${r.result}${r.note?` (${r.note})`:""}` : ""}`; }).join(" | "));
     }
+    { const dl = devOn(d), wk = devWeek(ws); L.push(`DEVELOPMENT: today ${devMins(dl)} min of ${devTarget()} target${dl.length ? " (" + dl.map(x => `${x.area} ${x.mins}m${x.text?" "+x.text:""}`).join("; ") + ")" : ""}; this week ${devMins(wk)} min.`); }
+    if (dayType(d) === "personal") { const pf = (day.pfocus||[]).filter(x => x && x.text); if (pf.length) L.push("PERSONAL DAY FOCUS: " + pf.map(x => `${x.text}${x.done?" ✓":""}`).join("; ")); }
     const sd = sdGet(d); const b3 = (sd.big3||[]).filter(x => x && x.text);
     if (b3.length) L.push("BIG 3: " + b3.map(x => `${x.text}${x.done?" ✓":""}`).join("; "));
     const r = day.review || {}; if (r.wins || r.misses || r.carry) L.push(`EVENING REVIEW: went well: ${r.wins||"-"} | fix: ${r.misses||"-"} | carry: ${r.carry||"-"}`);
@@ -2257,6 +2273,87 @@ How you coach:
   $("profTargets").addEventListener("click", () => { closeProfile(); setTab("week"); setWeekView("review"); setTimeout(() => $("tContacts").scrollIntoView({ behavior:"smooth", block:"center" }), 100); });
   $("profCoach").addEventListener("click", () => { closeProfile(); openChat(); });
 
+
+  // ================= DEVELOPMENT + PERSONAL FOCUS =================
+  const DEV_AREAS = ["BILD","Reading / study","AI business","Church leadership","Other"];
+  if (!Array.isArray(S.dev)) S.dev = [];
+  const devTarget = () => num(S.settings.devTarget, 60);
+  const devOn = d => S.dev.filter(x => x.date === d);
+  const devMins = list => list.reduce((a,x) => a + (+x.mins||0), 0);
+  const fmtMins = m => m >= 60 ? `${Math.floor(m/60)}h${m%60 ? " " + (m%60) + "m" : ""}` : `${m}m`;
+  function devWeek(ws){ const end = addDays(ws, 6); return S.dev.filter(x => x.date >= ws && x.date <= end); }
+  function migrateDevelopment(){
+    const f = (S.systems||[]).find(x => x.id === "faith");
+    if (f && f.name === "Faith") {
+      f.name = "Development"; f.purpose = "Get better every day — BILD work, study, and the skills I'm building."; f.metric = "Development minutes vs daily target";
+      f.steps = [["Development block (BILD work or study)","evening"],["Read or studied something that sharpens me","evening"],["Logged what I worked on","evening"]].map(([t,sl]) => ({ id:"st"+rid(), text:t, slot:sl }));
+      f.log.push({ date:today(), v:(f.log[f.log.length-1]||{v:1}).v + 1, text:"Renamed Faith → Development (BILD work, study, skills)" });
+      save();
+    }
+  }
+  function renderDev(){
+    const d = today(), list = devOn(d), mins = devMins(list), tgt = devTarget(), wk = devWeek(weekStart(d)), t = S.devTimer;
+    const running = t && t.start ? Math.max(0, Math.round((Date.now() - t.start)/60000)) : 0;
+    const pct = tgt ? Math.min(100, (mins + running) / tgt * 100) : 0;
+    const byArea = {}; wk.forEach(x => byArea[x.area] = (byArea[x.area]||0) + (+x.mins||0));
+    const html = `<h2>Development <small>${fmtMins(mins)} today · ${fmtMins(devMins(wk))} this week</small></h2>
+      <div class="bar" style="height:8px"><i style="width:${pct}%;${mins + running >= tgt ? "background:var(--good)" : ""}"></i></div>
+      <div class="note" style="margin-bottom:8px">Daily target ${fmtMins(tgt)}${Object.keys(byArea).length ? " · week: " + Object.entries(byArea).sort((a,b) => b[1]-a[1]).map(([a,m]) => `${esc(a)} ${fmtMins(m)}`).join(", ") : ""}</div>
+      ${t && t.start ? `<div class="insight" style="display:flex;align-items:center;gap:10px"><span style="flex:1"><b>● ${esc(t.area)}</b> — running ${fmtMins(running)}${t.text ? ` · ${esc(t.text)}` : ""}</span><button class="btn sm" data-dev="stop">Stop & log</button></div>` : ""}
+      <div class="row" style="gap:6px;margin-top:6px">
+        <select data-devf="area" style="flex:none;width:40%">${DEV_AREAS.map(a => `<option ${(UI.devArea||"BILD")===a?"selected":""}>${a}</option>`).join("")}</select>
+        <input data-devf="mins" inputmode="numeric" placeholder="Min" style="flex:none;width:22%">
+        ${t && t.start ? "" : `<button class="btn ghost sm" data-dev="start" style="flex:1;min-width:0;padding:8px 6px">Start timer</button>`}
+      </div>
+      <input data-devf="text" placeholder="What I worked on (e.g. Session 6 project, From Jesus to the Gospels ch. 3)" style="margin-top:6px">
+      <div class="actions"><button class="btn sm" data-dev="add">Log session</button></div>
+      ${list.length ? `<div class="visits" style="margin-top:10px">${list.map(x => `<div style="display:flex;gap:8px;align-items:flex-start"><span style="flex:1"><b>${esc(x.area)}</b> · ${fmtMins(+x.mins||0)}${x.text ? ` — ${esc(x.text)}` : ""}</span><button class="x2" data-dev="del" data-id="${x.id}" aria-label="Delete" style="font-size:16px;padding:0 4px">×</button></div>`).join("")}</div>` : ""}`;
+    document.querySelectorAll(".devCard").forEach(el => {
+      const keep = {}; el.querySelectorAll("[data-devf]").forEach(i => keep[i.dataset.devf] = i.value);
+      el.innerHTML = html;
+      Object.entries(keep).forEach(([k,v]) => { const i = el.querySelector(`[data-devf="${k}"]`); if (i && k !== "area" && v) i.value = v; });
+    });
+  }
+  document.addEventListener("change", e => { if (e.target.dataset && e.target.dataset.devf === "area") UI.devArea = e.target.value; });
+  document.addEventListener("click", e => {
+    const b = e.target.closest("[data-dev]"); if (!b) return;
+    const card = b.closest(".devCard"), get = k => { const i = card && card.querySelector(`[data-devf="${k}"]`); return i ? i.value.trim() : ""; };
+    const a = b.dataset.dev, d = today();
+    if (a === "add") {
+      const mins = parseInt(get("mins"), 10);
+      if (!mins || mins <= 0) { toast("Enter the minutes you worked"); return; }
+      const entry = { id:"dv"+rid(), date:d, area:get("area") || "BILD", text:get("text"), mins, ts:Date.now() };
+      S.dev.push(entry); save();
+      card.querySelectorAll("[data-devf=mins],[data-devf=text]").forEach(i => i.value = "");
+      toast(`Logged ${fmtMins(mins)} of ${entry.area}`);
+      if (window.aiFeedback) window.aiFeedback("Development session", `${entry.area}, ${mins} min${entry.text ? ": " + entry.text : ""}. Today total ${devMins(devOn(d))} min vs target ${devTarget()}.`);
+    } else if (a === "start") {
+      S.devTimer = { start:Date.now(), area:get("area") || "BILD", text:get("text") }; save();
+    } else if (a === "stop") {
+      const t = S.devTimer; if (!t) return;
+      const mins = Math.max(1, Math.round((Date.now() - t.start)/60000));
+      S.dev.push({ id:"dv"+rid(), date:d, area:t.area, text:get("text") || t.text || "", mins, ts:Date.now() });
+      S.devTimer = null; save(); toast(`Logged ${fmtMins(mins)} of ${t.area}`);
+    } else if (a === "del") {
+      S.dev = S.dev.filter(x => x.id !== b.dataset.id); save();
+    }
+    renderDev();
+  });
+  // personal focus list
+  function renderPersonal(){
+    const d = today(), f = (dayData(d).pfocus) || [{},{},{}];
+    $("pFocus").innerHTML = f.map((x, i) => `<div class="big3 ${x.done?"done":""}"><span class="box" data-pf="done" data-i="${i}">${x.done?"✓":""}</span><input data-pfi="${i}" value="${esc(x.text||"")}" placeholder="${i===0?"The one thing that matters most today":"Focus " + (i+1)}"></div>`).join("");
+  }
+  $("pFocus").addEventListener("input", e => { const i = e.target.dataset.pfi; if (i == null) return; const d = today(), f = [...(dayData(d).pfocus || [{},{},{}])]; f[+i] = { ...(f[+i]||{}), text:e.target.value }; saveDay(d, { pfocus:f }); });
+  $("pFocus").addEventListener("change", e => { const i = e.target.dataset.pfi; if (i != null && window.aiFeedback) window.aiFeedback(`Personal Day focus #${+i+1}`, e.target.value); });
+  $("personalToday").addEventListener("click", e => {
+    const b = e.target.closest("[data-pf]"); if (!b) return;
+    const d = today(), f = [...(dayData(d).pfocus || [{},{},{}])];
+    if (b.dataset.pf === "add") f.push({});
+    else if (b.dataset.pf === "done") { const i = +b.dataset.i; f[i] = { ...(f[i]||{}), done: !(f[i]||{}).done }; }
+    saveDay(d, { pfocus:f }); renderPersonal();
+  });
+
   // ================= boot =================
   function renderAll(){
     renderToday(); renderBizList();
@@ -2273,6 +2370,7 @@ How you coach:
   migrateDays();
   profInit();
   renderAvatar();
+  migrateDevelopment();
   renderHeader(); renderAll();
   routeHash();
   window.addEventListener("hashchange", routeHash);
