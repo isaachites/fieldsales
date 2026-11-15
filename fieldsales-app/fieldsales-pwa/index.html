@@ -159,6 +159,7 @@
       </div>
     </div>
 
+    <div class="card hide" id="todayPlan"></div>
     <div class="card">
       <h2>Morning game plan <small id="planSaved"></small></h2>
       <div class="insight hide" id="carryIn"></div>
@@ -488,7 +489,7 @@
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(()=>{});
 
   const UI = { tab:"today", bizFilter:"all", openId:null, tpl:"contact", chan:"sms", map:null, layer:null, mapTown:"" };
-  const DEF = { contacts:20, demos:6, hours:8, wins:2 };
+  const DEF = { contacts:15, demos:6, hours:8, wins:2 };
   const targets = () => ({
     contacts: num(S.settings.tContacts, DEF.contacts), demos: num(S.settings.tDemos, DEF.demos),
     hours: num(S.settings.tHours, DEF.hours), wins: num(S.settings.tWins, DEF.wins)
@@ -579,7 +580,7 @@
       ? due.map(b => `<div class="item" data-open="${esc(b.id)}"><div class="main"><div class="t">${esc(b.name)}</div><div class="s">${esc(b.next || "Follow up")} · ${esc(b.town||"")}</div></div><span class="tag due">${b.followUp === today() ? "Today" : esc(niceDate(b.followUp))}</span></div>`).join("")
       : `<div class="empty">Nothing due.</div>`;
   }
-  function renderToday(){ renderScore(); renderPlan(); renderDue(); }
+  function renderToday(){ renderScore(); renderTodayPlanCard(); renderPlan(); renderDue(); }
 
   $("clockBtn").addEventListener("click", () => {
     const d = today(), day = dayData(d);
@@ -1521,34 +1522,90 @@
 
   // ================= WEEKLY GAME PLAN =================
   const DAYS5 = [["mon","Monday"],["tue","Tuesday"],["wed","Wednesday"],["thu","Thursday"],["fri","Friday"]];
-  const FIXED = { mon:"Agency call 8:00", wed:"Agency call 8:00", fri:"Agency call 9:00" };
   const AUTO_METRICS = { contacts:"Contacts", demos:"Demos", sales:"Sales", hours:"Hours" };
+  const bid = () => "k" + rid();
+  const blk = (time, text) => ({ id:bid(), time, text });
+  const TEMPLATE_BLOCKS = {
+    mon:[["8:00–9:00","Agency call"],["9:00–12:00","Prospecting"],["12:00–12:30","Lunch, follow up with leads"],["12:30–4:30","Prospecting"],["4:30–5:00","Log numbers, book follow-ups, call Micah"]],
+    tue:[["8:00–8:45","Script practice, plan route, call Micah"],["9:00–12:00","Prospecting"],["12:00–12:30","Lunch, follow up with leads"],["12:30–4:30","Prospecting"],["4:30–5:00","Log numbers, book follow-ups"]],
+    wed:[["8:00–9:00","Agency call"],["9:00–12:00","Prospecting"],["12:00–12:30","Lunch, call Micah"],["12:30–4:30","Prospecting"],["4:30–5:00","Log numbers, confirm appointments"]],
+    thu:[["8:00–8:45","Call every \"come back\" and stack them into a route"],["9:00–12:00","Scheduled demos and callbacks"],["12:00–12:30","Lunch, call Micah"],["12:30–4:30","Prospecting"],["4:30–5:00","Book enrollments / team meetings for next week"]],
+    fri:[["8:00–9:00","Script practice, prep for the call"],["9:00–10:00","Agency call — first business at 10:00"],["10:00–12:30","Follow-ups and demos"],["12:30–1:00","Lunch"],["1:00–5:00","Remaining stops or warm referrals"],["5:00","Weekly review with Micah, map next week's zones"]]
+  };
   function gpInit(){
     if (!S.gp) S.gp = { drafts:{}, submitted:[], actuals:{} };
-    if (!S.gp.drafts) S.gp.drafts = {}; if (!S.gp.submitted) S.gp.submitted = []; if (!S.gp.actuals) S.gp.actuals = {};
+    ["drafts","actuals","seeded"].forEach(k => { if (!S.gp[k]) S.gp[k] = {}; });
+    if (!S.gp.submitted) S.gp.submitted = [];
+    Object.values(S.gp.drafts).forEach(normalizePlan); S.gp.submitted.forEach(normalizePlan);
+    seedNov9();
+  }
+  // older plan format (town/focus per day) -> new format
+  function normalizePlan(p){
+    if (!p.days) p.days = {};
+    DAYS5.forEach(([k]) => {
+      const d = p.days[k] = p.days[k] || {};
+      if (d.theme === undefined) d.theme = [d.town, d.focus].filter(Boolean).join(" — ");
+      if (!Array.isArray(d.blocks)) d.blocks = [];
+      if (d.contacts === undefined) d.contacts = ""; if (d.demos === undefined) d.demos = "";
+      delete d.town; delete d.focus;
+    });
+    if (p.strategy === undefined) p.strategy = "";
+    if (p.rules === undefined) p.rules = "";
+    if (!Array.isArray(p.prep)) p.prep = [];
+    if (p.followups === undefined) p.followups = "";
+    if (!Array.isArray(p.metrics)) p.metrics = [];
+  }
+  // one-time import of the Nov 9–13 plan Isaac built with Claude
+  function seedNov9(){
+    if (S.gp.seeded["2026-11-09"]) return;
+    S.gp.seeded["2026-11-09"] = true;
+    if (S.gp.submitted.some(p => p.week === "2026-11-09")) return;
+    const D = (theme, c, dm, blocks) => ({ theme, contacts:String(c), demos:String(dm), blocks:blocks.map(([t,x]) => blk(t,x)) });
+    S.gp.submitted.push({ id:"gp"+rid(), week:"2026-11-09", submittedAt:new Date(2026,10,8,18,0).getTime(), imported:true,
+      strategy:"Ames is done, so work Boone one zone at a time to cut drive time. At every business with 10+ employees, push for a team meeting or group enrollment. Call Micah every day. First business at 9:00 every day except Friday.",
+      rules:"A winning day hits 2 of 3: 15 contacts, 6 demos, 8 hours. Demos must count as one of the two on at least three days this week, so effort alone can't carry the week.",
+      goals:"", metrics:[{ id:"m"+rid(), name:"Contacts", target:"75", auto:"contacts" },{ id:"m"+rid(), name:"Demos", target:"30", auto:"demos" },{ id:"m"+rid(), name:"Sales", target:"", auto:"sales" },{ id:"m"+rid(), name:"Hours in the field", target:"40", auto:"hours" },{ id:"m"+rid(), name:"Team meetings / enrollments booked", target:"2", auto:"" }],
+      days:{
+        mon:D("Ames AM, downtown Boone PM",15,4,[["8:00–9:00","Agency call"],["9:00–9:50","2 contacts at Ames businesses near the doctor's office"],["10:00–11:15","Doctor's appointment (doesn't count toward hours)"],["11:15–11:45","Drive to Boone, eat in the car"],["11:45–2:30","Downtown Boone, 7 contacts, 2 demos"],["2:30–5:30","Keep working downtown, 6 contacts, 2 demos. Book 1 demo for Thursday."],["5:30","Call Micah and report your numbers"]]),
+        tue:D("Boone, rest of the main business district",15,6,[["8:00–8:45","Script practice, plan the route, 10-minute call with Micah"],["9:00–12:00","8 contacts, 3 demos"],["12:00–12:30","Lunch. Follow up with Monday's leads."],["12:30–4:30","7 contacts, 3 demos. Ask for a team meeting at every business with 10+ employees."],["4:30–5:00","Log your numbers, book Thursday follow-ups"]]),
+        wed:D("Boone, Hwy 30 commercial strip and the south side",15,6,[["8:00–9:00","Agency call"],["9:00–12:00","8 contacts, 3 demos"],["12:00–12:30","Lunch and a call with Micah"],["12:30–4:30","7 contacts, 3 demos. Go after bigger employers (light industrial, medical, auto, trades) for team meetings."],["4:30–5:00","Log your numbers, confirm Thursday's appointments"]]),
+        thu:D("Boone callbacks plus the leftover zone",10,6,[["8:00–8:45","Call everyone from Mon–Wed who said \"come back\" and stack those visits into a route"],["9:00–12:00","Scheduled demos and callbacks, 3 demos"],["12:00–12:30","Lunch and a call with Micah"],["12:30–4:30","Remaining Boone zone, 10 contacts, 3 demos"],["4:30–5:00","Book 2+ enrollments or team meetings for next week"]]),
+        fri:D("Close the loop",15,6,[["8:00–9:00","Script practice, prep for the call"],["9:00–10:00","Agency call. First business at 10:00 today."],["10:00–12:30","Boone follow-ups and demos, 8 contacts, 3 demos"],["12:30–1:00","Lunch"],["1:00–5:00","Remaining Boone stops or warm Ames referrals, 7 contacts, 3 demos"],["5:00","Weekly review with Micah, map out next week's zones"]])
+      },
+      prep:[{ id:bid(), text:"List 20–25 Boone businesses by zone on Google Maps", done:false },{ id:bid(), text:"Ask church contacts for warm intros to Boone business owners", done:false }],
+      followups:"", priorities:"", notes:"Imported from the Nov 9–13 game plan doc." });
+    save();
   }
   function defaultPlanWeek(){ const dow = new Date().getDay(); const ws = weekStart(today()); return (dow === 5 || dow === 6 || dow === 0) ? addDays(ws, 7) : ws; }
   function latestSubmitted(week){ return S.gp.submitted.filter(p => p.week === week).sort((a,b) => b.submittedAt - a.submittedAt)[0] || null; }
   function newDraft(week){
     const T = targets();
-    // carry structure forward from the most recent plan
     const prev = Object.values(S.gp.drafts).filter(d => d.week < week).sort((a,b) => b.week.localeCompare(a.week))[0]
-              || S.gp.submitted.slice().sort((a,b) => b.week.localeCompare(a.week))[0];
-    const metrics = prev ? prev.metrics.map(m => ({ ...m, id:"m"+rid() }))
+              || S.gp.submitted.filter(d => d.week < week).sort((a,b) => b.week.localeCompare(a.week))[0];
+    const metrics = prev && prev.metrics.length ? prev.metrics.map(m => ({ ...m, id:"m"+rid() }))
       : [ { id:"m"+rid(), name:"Contacts", target:String(T.contacts*5), auto:"contacts" },
           { id:"m"+rid(), name:"Demos", target:String(T.demos*5), auto:"demos" },
           { id:"m"+rid(), name:"Sales", target:"", auto:"sales" },
           { id:"m"+rid(), name:"Hours in the field", target:String(T.hours*5), auto:"hours" },
-          { id:"m"+rid(), name:"Referrals", target:"", auto:"" } ];
-    return { week, goals: prev ? prev.goals || "" : "", metrics, days: Object.fromEntries(DAYS5.map(([k]) => [k, { town:"", focus:"" }])),
-      followups:"", priorities:"", notes: (!prev && S.settings.gamePlan) ? S.settings.gamePlan : "", updated:Date.now() };
+          { id:"m"+rid(), name:"Team meetings / enrollments booked", target:"", auto:"" } ];
+    // carry the day structure forward (time blocks) but clear the zones — those change every week
+    const days = Object.fromEntries(DAYS5.map(([k]) => {
+      const pd = prev && prev.days && prev.days[k];
+      const blocks = pd && pd.blocks && pd.blocks.length ? pd.blocks.map(b => blk(b.time, b.text.replace(/\d+\s+contacts?,?\s*/i, "").replace(/\d+\s+demos?\.?\s*/i, "").trim() || b.text)) : TEMPLATE_BLOCKS[k].map(([t,x]) => blk(t,x));
+      return [k, { theme:"", contacts: String(T.contacts), demos: String(T.demos), blocks }];
+    }));
+    return { week, strategy: prev ? prev.strategy || "" : "", rules: prev ? prev.rules || "" : `A winning day hits ${T.wins} of 3: ${T.contacts} contacts, ${T.demos} demos, ${T.hours} hours.`,
+      goals: prev ? prev.goals || "" : "", metrics, days,
+      prep: [], followups:"", priorities:"", notes:"", updated:Date.now() };
   }
   function draftFor(week){
     if (!S.gp.drafts[week]) {
       const sub = latestSubmitted(week);
-      S.gp.drafts[week] = sub ? JSON.parse(JSON.stringify({ ...sub, id:undefined, submittedAt:undefined })) : newDraft(week);
+      if (sub) { const c = JSON.parse(JSON.stringify(sub)); delete c.id; delete c.submittedAt; delete c.imported; S.gp.drafts[week] = c; }
+      else S.gp.drafts[week] = newDraft(week);
       save();
     }
+    normalizePlan(S.gp.drafts[week]);
     return S.gp.drafts[week];
   }
   function weekActual(week, auto){
@@ -1556,44 +1613,66 @@
     let v = 0; days.forEach(d => { const s = statsFor(d); v += auto === "hours" ? s.hours : (s[auto] || 0); });
     return auto === "hours" ? Math.round(v*10)/10 : v;
   }
-  function planChangedSinceSubmit(dr){
-    const sub = latestSubmitted(dr.week); if (!sub) return null;
-    const strip = o => JSON.stringify({ g:o.goals, m:o.metrics.map(x => [x.name,x.target,x.auto]), d:o.days, f:o.followups, p:o.priorities, n:o.notes });
-    return strip(sub) !== strip(dr);
-  }
+  function planSig(o){ return JSON.stringify({ s:o.strategy, r:o.rules, g:o.goals, m:o.metrics.map(x => [x.name,x.target,x.auto]), d:DAYS5.map(([k]) => { const d = o.days[k]||{}; return [d.theme,d.contacts,d.demos,(d.blocks||[]).map(b => [b.time,b.text])]; }), p:(o.prep||[]).map(x => [x.text,x.done]), f:o.followups, i:o.priorities, n:o.notes }); }
+  function planChangedSinceSubmit(dr){ const sub = latestSubmitted(dr.week); return sub ? planSig(sub) !== planSig(dr) : null; }
   const weekRange = w => `${parseYmd(w).toLocaleDateString(undefined,{month:"short",day:"numeric"})} – ${parseYmd(addDays(w,4)).toLocaleDateString(undefined,{month:"short",day:"numeric"})}`;
+  const dayDate = (week, i) => parseYmd(addDays(week, i)).toLocaleDateString(undefined,{month:"numeric",day:"numeric"});
 
   function viewGamePlan(){
     gpInit();
     if (!UI.gpWeek) UI.gpWeek = defaultPlanWeek();
-    const ws = weekStart(today()), dr = draftFor(UI.gpWeek), sub = latestSubmitted(dr.week), changed = planChangedSinceSubmit(dr);
+    if (!UI.gpDayOpen) UI.gpDayOpen = {};
+    const ws = weekStart(today()), dr = draftFor(UI.gpWeek), sub = latestSubmitted(dr.week), changed = planChangedSinceSubmit(dr), T = targets();
     const weeks = [addDays(ws,-7), ws, addDays(ws,7), addDays(ws,14)];
     const status = sub
       ? (changed ? `<div class="banner" style="margin:8px 0 0">Edited since you submitted it ${esc(new Date(sub.submittedAt).toLocaleString([], {weekday:"short", hour:"numeric", minute:"2-digit"}))}. Resubmit to save this version to your review.</div>`
                  : `<div class="done-banner">Submitted ${esc(new Date(sub.submittedAt).toLocaleString([], {weekday:"short", month:"short", day:"numeric", hour:"numeric", minute:"2-digit"}))}</div>`)
       : `<div class="note">Draft — not submitted yet.</div>`;
+    const sumC = DAYS5.reduce((a,[k]) => a + (parseFloat((dr.days[k]||{}).contacts)||0), 0), sumD = DAYS5.reduce((a,[k]) => a + (parseFloat((dr.days[k]||{}).demos)||0), 0);
+    const dayCards = DAYS5.map(([k,label], i) => {
+      const d = dr.days[k], open = UI.gpDayOpen[k] !== false;
+      return `<div class="card">
+        <div class="row" style="align-items:center;cursor:pointer" data-gpact="dayopen" data-day="${k}"><h2 style="margin:0;flex:1">${label} ${dayDate(dr.week, i)}${d.theme ? `<small style="margin-left:6px">${esc(d.theme)}</small>` : ""}</h2><span class="muted" style="flex:none">${open?"▴":"▾"}</span></div>
+        ${open ? `
+        <label>Zone / theme</label><input data-gpd="theme" data-day="${k}" value="${esc(d.theme||"")}" placeholder="e.g. Boone, Hwy 30 strip and the south side" list="townList">
+        <div class="grid2"><div><label>Contacts</label><input data-gpd="contacts" data-day="${k}" value="${esc(d.contacts||"")}" inputmode="numeric"></div><div><label>Demos</label><input data-gpd="demos" data-day="${k}" value="${esc(d.demos||"")}" inputmode="numeric"></div></div>
+        <label>Schedule</label>
+        ${(d.blocks||[]).map(b => `<div class="sysrow"><input data-gpb="time" data-day="${k}" data-id="${b.id}" value="${esc(b.time)}" placeholder="9:00–12:00" style="flex:none;width:112px"><input data-gpb="text" data-day="${k}" data-id="${b.id}" value="${esc(b.text)}" placeholder="What happens"><button class="x2" data-gpact="delb" data-day="${k}" data-id="${b.id}" aria-label="Remove block">×</button></div>`).join("")}
+        <div class="actions"><button class="btn plain sm" data-gpact="addb" data-day="${k}">+ Add time block</button></div>` : ""}
+      </div>`;
+    }).join("");
     return `
       <div class="card"><h2>Weekly game plan</h2>
         <label style="margin-top:0">Plan for the week of</label>
         <select data-gp="week">${weeks.map(w => `<option value="${w}" ${w===dr.week?"selected":""}>${esc(weekRange(w))}${w===ws?" (this week)":w===addDays(ws,7)?" (next week)":""}${latestSubmitted(w)?" ✓":""}</option>`).join("")}</select>
         ${status}
       </div>
-      <div class="card"><h2>Goals & why they matter</h2>
-        <textarea data-gpf="goals" style="min-height:90px" placeholder="What I'm going after this week, and why it matters to me">${esc(dr.goals||"")}</textarea>
-      </div>
-      <div class="card"><h2>Metrics <small>target for the week</small></h2>
+      <div class="card"><h2>Targets</h2>
+        <div class="grid2" style="grid-template-columns:1fr 1fr 1fr">
+          <div><label>Contacts / day</label><input data-gpt="tContacts" value="${T.contacts}" inputmode="numeric"></div>
+          <div><label>Demos / day</label><input data-gpt="tDemos" value="${T.demos}" inputmode="numeric"></div>
+          <div><label>Hours / day</label><input data-gpt="tHours" value="${T.hours}" inputmode="decimal"></div>
+        </div>
+        <label>The rule for a winning day</label>
+        <textarea data-gpf="rules" style="min-height:64px" placeholder="e.g. 2 of 3 — and demos must be one of the two on 3+ days">${esc(dr.rules||"")}</textarea>
+        <label>Weekly metrics <span class="muted">(day plans add up to ${sumC} contacts, ${sumD} demos)</span></label>
         ${dr.metrics.map(m => `<div class="sysrow">
             <input data-gpm="name" data-id="${m.id}" value="${esc(m.name)}" placeholder="Metric">
-            <input data-gpm="target" data-id="${m.id}" value="${esc(m.target||"")}" placeholder="Target" inputmode="decimal" style="flex:none;width:84px">
+            <input data-gpm="target" data-id="${m.id}" value="${esc(m.target||"")}" placeholder="Target" inputmode="decimal" style="flex:none;width:80px">
             <button class="x2" data-gpact="delm" data-id="${m.id}" aria-label="Remove metric">×</button></div>
-            ${m.auto ? `<div class="note" style="margin:2px 0 4px">Tracked automatically from your visit log${dr.week <= today() ? ` · so far: <b>${weekActual(dr.week, m.auto)}</b>` : ""}</div>` : `<div class="note" style="margin:2px 0 4px">You log this one in Review</div>`}`).join("")}
+            <div class="note" style="margin:2px 0 4px">${m.auto ? `Tracked from your visit log${dr.week <= today() ? ` · so far: <b>${weekActual(dr.week, m.auto)}</b>` : ""}` : "You log this one in Review"}</div>`).join("")}
         <div class="actions"><button class="btn plain sm" data-gpact="addm">+ Add metric</button></div>
       </div>
-      <div class="card"><h2>Territory by day</h2>
-        ${DAYS5.map(([k,label]) => { const dd = (dr.days||{})[k] || {}; return `<div style="padding:8px 0;border-bottom:1px solid var(--line)">
-          <b>${label}</b>${FIXED[k] ? ` <span class="tag">${FIXED[k]}</span>` : ""}
-          <div class="grid2" style="margin-top:6px"><input data-gpd="town" data-day="${k}" value="${esc(dd.town||"")}" placeholder="Town / area" list="townList"><input data-gpd="focus" data-day="${k}" value="${esc(dd.focus||"")}" placeholder="Focus"></div></div>`; }).join("")}
-        <div class="actions"><button class="btn ghost sm" data-gpact="autofill">Fill empty days from my numbers</button></div>
+      <div class="card"><h2>This week's strategy</h2>
+        <textarea data-gpf="strategy" style="min-height:96px" placeholder="Where you're working, how you'll work it, and what you're pushing for">${esc(dr.strategy||"")}</textarea>
+        <label>Goals & why they matter to me</label>
+        <textarea data-gpf="goals" style="min-height:64px">${esc(dr.goals||"")}</textarea>
+      </div>
+      <h2 style="font-size:15px;margin:16px 4px 0">Daily schedule</h2>
+      ${dayCards}
+      <div class="card"><h2>Prep checklist</h2>
+        ${(dr.prep||[]).map(x => `<div class="sysrow"><span class="box" data-gpact="prepdone" data-id="${x.id}" style="width:26px;height:26px;border-radius:8px;border:2px solid ${x.done?"var(--good)":"var(--line)"};background:${x.done?"var(--good)":"transparent"};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;cursor:pointer;flex:none">${x.done?"✓":""}</span><input data-gpp="${x.id}" value="${esc(x.text)}" placeholder="Prep item"><button class="x2" data-gpact="delp" data-id="${x.id}" aria-label="Remove">×</button></div>`).join("")}
+        <div class="actions"><button class="btn plain sm" data-gpact="addp">+ Add prep item</button></div>
       </div>
       <div class="card"><h2>Key follow-ups & accounts</h2>
         <textarea data-gpf="followups" placeholder="Businesses to close, demos to finish, enrollments to set up">${esc(dr.followups||"")}</textarea>
@@ -1603,10 +1682,10 @@
         <textarea data-gpf="priorities" placeholder="Focus basic, system change, skill to drill">${esc(dr.priorities||"")}</textarea>
       </div>
       <div class="card"><h2>Notes & new variables</h2>
-        <textarea data-gpf="notes" placeholder="Anything that comes up mid-week — schedule changes, new leads, adjustments">${esc(dr.notes||"")}</textarea>
+        <textarea data-gpf="notes" placeholder="Anything that comes up mid-week — schedule changes, new leads, appointments">${esc(dr.notes||"")}</textarea>
       </div>
       <div class="card"><h2>Submit your game plan</h2>
-        <p class="small muted" style="margin:0">Submitting saves a copy of this plan to your Review tab, where it's scored against what actually happened. You can keep editing and resubmit anytime — every version is kept.</p>
+        <p class="small muted" style="margin:0">Submitting saves a copy to your Review tab, where it's scored against what actually happened. Keep editing and resubmit anytime — every version is kept.</p>
         <div class="actions"><button class="btn" data-gpact="submit" style="flex:1">${sub ? "Resubmit game plan" : "Submit game plan"}</button></div>
       </div>`;
   }
@@ -1616,7 +1695,10 @@
     const t = e.target, dr = draftFor(UI.gpWeek);
     if (t.dataset.gpf) dr[t.dataset.gpf] = t.value;
     else if (t.dataset.gpm) { const m = dr.metrics.find(x => x.id === t.dataset.id); if (m) m[t.dataset.gpm] = t.value; }
-    else if (t.dataset.gpd) { dr.days[t.dataset.day] = { ...(dr.days[t.dataset.day]||{}), [t.dataset.gpd]: t.value }; }
+    else if (t.dataset.gpd) dr.days[t.dataset.day][t.dataset.gpd] = t.value;
+    else if (t.dataset.gpb) { const b = dr.days[t.dataset.day].blocks.find(x => x.id === t.dataset.id); if (b) b[t.dataset.gpb] = t.value; }
+    else if (t.dataset.gpp) { const x = dr.prep.find(y => y.id === t.dataset.gpp); if (x) x.text = t.value; }
+    else if (t.dataset.gpt) { S.settings[t.dataset.gpt] = t.value; save(); return; }
     else return;
     dr.updated = Date.now(); save();
   });
@@ -1625,22 +1707,15 @@
   });
   $("wkPlanView").addEventListener("click", e => {
     const el = e.target.closest("[data-gpact]"); if (!el) return;
-    const dr = draftFor(UI.gpWeek), a = el.dataset.gpact;
+    const dr = draftFor(UI.gpWeek), a = el.dataset.gpact, day = el.dataset.day;
+    if (a === "dayopen") { UI.gpDayOpen[day] = UI.gpDayOpen[day] === false; renderGamePlan(); return; }
     if (a === "addm") dr.metrics.push({ id:"m"+rid(), name:"", target:"", auto:"" });
     else if (a === "delm") dr.metrics = dr.metrics.filter(m => m.id !== el.dataset.id);
-    else if (a === "autofill") {
-      const I = insights(), pool = I.towns.map(([t]) => t).filter(t => t !== "?");
-      const fallback = [...new Set(S.biz.map(b => (b.town||"").trim()).filter(Boolean))];
-      const towns = (pool.length ? pool : fallback);
-      DAYS5.forEach(([k], i) => {
-        const dd = dr.days[k] = dr.days[k] || {};
-        const date = addDays(dr.week, i);
-        const fu = S.biz.filter(b => b.followUp === date || (i === 0 && b.followUp && b.followUp < date)).map(b => b.name);
-        if (!dd.town && towns.length) dd.town = towns[i % towns.length];
-        if (!dd.focus && fu.length) dd.focus = `Follow-ups: ${fu.slice(0,3).join(", ")}${fu.length>3?` +${fu.length-3}`:""}`;
-      });
-      if (!towns.length) toast("Log some visits first so the app knows your towns");
-    }
+    else if (a === "addb") dr.days[day].blocks.push(blk("", ""));
+    else if (a === "delb") dr.days[day].blocks = dr.days[day].blocks.filter(b => b.id !== el.dataset.id);
+    else if (a === "addp") dr.prep.push({ id:bid(), text:"", done:false });
+    else if (a === "delp") dr.prep = dr.prep.filter(x => x.id !== el.dataset.id);
+    else if (a === "prepdone") { const x = dr.prep.find(y => y.id === el.dataset.id); if (x) x.done = !x.done; }
     else if (a === "pullfu") {
       const end = addDays(dr.week, 6);
       const fu = S.biz.filter(b => b.followUp && b.followUp <= end).sort((x,y) => x.followUp < y.followUp ? -1 : 1).map(b => `- ${b.name} (${b.town||"?"}) ${niceDate(b.followUp)}: ${b.next || "follow up"}`);
@@ -1650,29 +1725,60 @@
     else if (a === "submit") {
       const snap = JSON.parse(JSON.stringify(dr));
       S.gp.submitted.push({ ...snap, id:"gp"+rid(), submittedAt:Date.now() });
-      if (dr.priorities) { /* keep */ }
       save(); toast("Game plan submitted — it's in your Review tab");
     }
     dr.updated = Date.now(); save(); renderGamePlan();
   });
 
+  // ---------- today's slice of the plan (shown on the Today tab) ----------
+  function todaysPlan(){
+    gpInit();
+    const d = today(), dow = parseYmd(d).getDay(); if (dow === 0 || dow === 6) return null;
+    const ws = weekStart(d), k = DAYS5[dow-1][0];
+    const p = S.gp.drafts[ws] || latestSubmitted(ws); if (!p) return null;
+    normalizePlan(p);
+    return { day:p.days[k], label:DAYS5[dow-1][1] };
+  }
+  function renderTodayPlanCard(){
+    const el = $("todayPlan"); if (!el) return;
+    const tp = todaysPlan();
+    if (!tp || (!tp.day.theme && !(tp.day.blocks||[]).length)) { el.innerHTML = ""; el.classList.add("hide"); return; }
+    el.classList.remove("hide");
+    el.innerHTML = `<h2>From your game plan <small>${esc(tp.label)}</small></h2>
+      ${tp.day.theme ? `<div style="font-weight:600;margin-bottom:4px">${esc(tp.day.theme)}</div>` : ""}
+      ${(tp.day.contacts || tp.day.demos) ? `<div class="small muted" style="margin-bottom:6px">Target: ${esc(tp.day.contacts||"–")} contacts, ${esc(tp.day.demos||"–")} demos</div>` : ""}
+      ${(tp.day.blocks||[]).filter(b => b.time || b.text).map(b => `<div class="small" style="padding:5px 0;border-bottom:1px dashed var(--line)"><b style="display:inline-block;min-width:92px">${esc(b.time)}</b>${esc(b.text)}</div>`).join("")}`;
+  }
+
   // ---------- Review tab: plan vs actual + history ----------
   function planVsActualHtml(p, editable){
     const act = S.gp.actuals[p.week] || {};
+    const future = p.week > today();
     const rows = p.metrics.filter(m => m.name).map(m => {
-      const future = p.week > today();
       const actual = future ? "" : (m.auto ? weekActual(p.week, m.auto) : act[m.id]);
       const tgt = parseFloat(m.target);
-      const pct = isFinite(tgt) && tgt > 0 && actual !== undefined && actual !== "" ? Math.round(parseFloat(actual)/tgt*100) : null;
+      const pct = !future && isFinite(tgt) && tgt > 0 && actual !== undefined && actual !== "" ? Math.round(parseFloat(actual)/tgt*100) : null;
       const actCell = future ? `<span class="muted">–</span>` : m.auto ? `<b>${actual}</b>` : (editable ? `<input data-gpact-val="${m.id}" data-week="${p.week}" value="${esc(act[m.id] ?? "")}" inputmode="decimal" style="width:70px;padding:6px 8px">` : `<b>${esc(act[m.id] ?? "–")}</b>`);
       return `<tr><td>${esc(m.name)}</td><td class="n">${esc(m.target||"–")}</td><td class="n">${actCell}</td><td class="n" style="color:${pct==null?"var(--muted)":pct>=100?"var(--good)":pct>=70?"var(--warn)":"var(--bad)"}">${pct==null?"–":pct+"%"}</td></tr>`;
     }).join("");
-    return `<table><tr><th>Metric</th><th class="n">Target</th><th class="n">Actual</th><th class="n">%</th></tr>${rows}</table>`;
+    const dayRows = DAYS5.map(([k,l], i) => {
+      const dd = (p.days||{})[k] || {}, date = addDays(p.week, i), s = date <= today() ? statsFor(date) : null;
+      if (!dd.contacts && !dd.demos && !s) return "";
+      const hitC = s && parseFloat(dd.contacts) ? s.contacts >= parseFloat(dd.contacts) : null, hitD = s && parseFloat(dd.demos) ? s.demos >= parseFloat(dd.demos) : null;
+      const col = h => h === null ? "" : h ? "color:var(--good)" : "color:var(--bad)";
+      return `<tr><td>${l.slice(0,3)}</td><td class="n">${esc(dd.contacts||"–")} / ${esc(dd.demos||"–")}</td><td class="n">${s ? `<span style="${col(hitC)}">${s.contacts}</span> / <span style="${col(hitD)}">${s.demos}</span>` : "–"}</td></tr>`;
+    }).join("");
+    return `<table><tr><th>Metric</th><th class="n">Target</th><th class="n">Actual</th><th class="n">%</th></tr>${rows}</table>
+      ${dayRows ? `<table style="margin-top:10px"><tr><th>Day</th><th class="n">Plan C / D</th><th class="n">Actual C / D</th></tr>${dayRows}</table>` : ""}`;
   }
   function planBodyHtml(p){
-    const days = DAYS5.map(([k,l]) => { const dd = (p.days||{})[k]||{}; return dd.town || dd.focus ? `<div><b>${l.slice(0,3)}:</b> ${esc(dd.town||"")}${dd.focus?` — ${esc(dd.focus)}`:""}</div>` : ""; }).join("");
-    return `${p.goals?`<label>Goals & why</label><div class="small" style="white-space:pre-wrap">${esc(p.goals)}</div>`:""}
-      ${days?`<label>Territory</label><div class="small">${days}</div>`:""}
+    const days = DAYS5.map(([k,l]) => { const dd = (p.days||{})[k]||{}; if (!dd.theme && !(dd.blocks||[]).length) return "";
+      return `<div style="margin-top:6px"><b>${l}</b>${dd.theme?` — ${esc(dd.theme)}`:""}${(dd.blocks||[]).map(b => `<div class="small" style="padding-left:8px">${esc(b.time)} ${esc(b.text)}</div>`).join("")}</div>`; }).join("");
+    return `${p.rules?`<label>Winning day rule</label><div class="small" style="white-space:pre-wrap">${esc(p.rules)}</div>`:""}
+      ${p.strategy?`<label>Strategy</label><div class="small" style="white-space:pre-wrap">${esc(p.strategy)}</div>`:""}
+      ${p.goals?`<label>Goals & why</label><div class="small" style="white-space:pre-wrap">${esc(p.goals)}</div>`:""}
+      ${days?`<label>Daily schedule</label><div class="small">${days}</div>`:""}
+      ${(p.prep||[]).length?`<label>Prep</label><div class="small">${p.prep.map(x => `<div>${x.done?"✓":"☐"} ${esc(x.text)}</div>`).join("")}</div>`:""}
       ${p.followups?`<label>Follow-ups</label><div class="small" style="white-space:pre-wrap">${esc(p.followups)}</div>`:""}
       ${p.priorities?`<label>Improving</label><div class="small" style="white-space:pre-wrap">${esc(p.priorities)}</div>`:""}
       ${p.notes?`<label>Notes</label><div class="small" style="white-space:pre-wrap">${esc(p.notes)}</div>`:""}`;
@@ -1687,7 +1793,7 @@
     const weeks = [...new Set(S.gp.submitted.map(p => p.week))].sort().reverse();
     $("gpHistory").innerHTML = weeks.length ? weeks.map(w => {
       const p = latestSubmitted(w), versions = S.gp.submitted.filter(x => x.week === w).length, open = UI.gpOpen === w;
-      return `<div class="item" data-gpopen="${w}"><div class="main"><div class="t">Week of ${esc(weekRange(w))}</div><div class="s">Submitted ${esc(new Date(p.submittedAt).toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"}))}${versions>1?` · ${versions} versions`:""}</div></div><span class="muted">${open?"▴":"▾"}</span></div>
+      return `<div class="item" data-gpopen="${w}"><div class="main"><div class="t">Week of ${esc(weekRange(w))}</div><div class="s">${p.imported ? "Imported from your game plan doc" : `Submitted ${esc(new Date(p.submittedAt).toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"}))}`}${versions>1?` · ${versions} versions`:""}</div></div><span class="muted">${open?"▴":"▾"}</span></div>
         ${open ? `<div class="box" style="margin:4px 0 12px">${planVsActualHtml(p, w <= ws)}${planBodyHtml(p)}<div class="actions"><button class="btn plain sm" data-gpedit="${w}">Open in Game Plan</button></div></div>` : ""}`;
     }).join("") : `<div class="empty">No submitted game plans yet.</div>`;
   }
@@ -1709,14 +1815,17 @@
   }
   $("wkSeg").addEventListener("click", e => { const b = e.target.closest("button"); if (b) setWeekView(b.dataset.v); });
 
-  // text for the AI coach
   function planText(p){
     if (!p) return "(none submitted)";
     const act = S.gp.actuals[p.week] || {};
-    const L = [`Week of ${weekRange(p.week)} (submitted ${new Date(p.submittedAt).toLocaleString()})`];
+    const L = [`Week of ${weekRange(p.week)} (${p.imported ? "imported" : "submitted " + new Date(p.submittedAt).toLocaleString()})`];
+    if (p.rules) L.push("Winning day rule: " + p.rules);
+    if (p.strategy) L.push("Strategy: " + p.strategy);
     if (p.goals) L.push("Goals & why: " + p.goals);
-    L.push("Metrics (target → actual): " + p.metrics.filter(m => m.name).map(m => `${m.name} ${m.target||"-"} → ${m.auto ? weekActual(p.week, m.auto) : (act[m.id] ?? "-")}`).join("; "));
-    DAYS5.forEach(([k,l]) => { const dd = (p.days||{})[k]||{}; if (dd.town || dd.focus) L.push(`${l}: ${dd.town||""}${dd.focus?` — ${dd.focus}`:""}`); });
+    L.push("Metrics (target → actual): " + p.metrics.filter(m => m.name).map(m => `${m.name} ${m.target||"-"} → ${p.week > today() ? "-" : (m.auto ? weekActual(p.week, m.auto) : (act[m.id] ?? "-"))}`).join("; "));
+    DAYS5.forEach(([k,l], i) => { const dd = (p.days||{})[k]||{}; const date = addDays(p.week, i); const s = date <= today() ? statsFor(date) : null;
+      if (dd.theme || (dd.blocks||[]).length) L.push(`${l}: ${dd.theme||""} | plan ${dd.contacts||"-"} contacts / ${dd.demos||"-"} demos${s ? ` | actual ${s.contacts} / ${s.demos}, ${s.hours}h` : ""} | ${(dd.blocks||[]).map(b => `${b.time} ${b.text}`).join("; ")}`); });
+    if ((p.prep||[]).length) L.push("Prep: " + p.prep.map(x => `${x.text}${x.done?" [done]":" [not done]"}`).join("; "));
     if (p.followups) L.push("Follow-ups: " + p.followups);
     if (p.priorities) L.push("Improving: " + p.priorities);
     if (p.notes) L.push("Notes: " + p.notes);
