@@ -660,7 +660,7 @@
     const v = $("verdict");
     if (hits >= T.wins) { v.className = "verdict good"; v.textContent = `Winning day — ${hits} of 3 targets hit`; }
     else { v.className = "verdict pending"; v.textContent = `${hits} of 3 hit · need ${T.wins}`; }
-    $("clockBtn").textContent = day.startedAt ? "End shift" : (st.hours > 0 ? "Resume clock" : "Start day");
+    $("clockBtn").textContent = day.startedAt ? "End day" : (st.hours > 0 ? "Resume day" : "Start day");
     if (document.activeElement !== $("hoursInput")) $("hoursInput").value = st.hours ? Math.round(st.hours*100)/100 : "";
     $("hdrClock").textContent = day.startedAt ? `● ${fmtH(lh)}h` : "";
   }
@@ -692,8 +692,8 @@
     if (day.startedAt) {
       const add = (Date.now() - day.startedAt)/3600000;
       saveDay(d, { startedAt:null, hours: Math.round((num(day.hours,0)+add)*100)/100 });
-      toast("Shift ended");
-    } else { saveDay(d, { startedAt: Date.now() }); toast("Clock started"); }
+      toast("Day ended");
+    } else { saveDay(d, { startedAt: Date.now() }); toast("Day started"); }
     renderScore();
   });
   $("hoursInput").addEventListener("change", e => { const v = parseFloat(e.target.value); saveDay(today(), { hours: isFinite(v) ? v : 0 }); renderScore(); });
@@ -1189,7 +1189,7 @@
     { id:"faith", name:"Development", cadence:"daily", purpose:"Get better every day — BILD work, study, and the skills I'm building.", metric:"Development minutes vs daily target",
       steps:[["Development block (BILD work or study)","evening"],["Read or studied something that sharpens me","evening"],["Logged what I worked on","evening"]] },
     { id:"shutdown", name:"Shutdown", cadence:"daily", purpose:"Close the workday cleanly so nothing lives in my head overnight.", metric:"Steps completed",
-      steps:[["Ended shift clock","evening"],["Logged any missed visits","evening"],["Follow-up date on every non-sale","evening"],["Evening review done (Today tab)","evening"],["Phone away on time","evening"]] },
+      steps:[["Tapped End day","evening"],["Logged any missed visits","evening"],["Follow-up date on every non-sale","evening"],["Evening review done (Today tab)","evening"],["Phone away on time","evening"]] },
     { id:"finances", name:"Finances", cadence:"weekly", purpose:"Know my numbers and move toward my financial goals instead of guessing.", metric:"Weekly check done + income logged",
       steps:[["Logged income & commissions","weekly"],["10-minute money check (in / out)","weekly"],["Tithing & giving","weekly"],["Savings transfer","weekly"],["Blackout books on track","weekly"]] },
     { id:"learning", name:"Learning / AI business", cadence:"weekly", purpose:"Build the skills for the AI business without stealing time from sales.", metric:"Learning blocks done + owner problems logged",
@@ -2042,6 +2042,7 @@
   const WEEKDAY_ONLY = ["prospecting","shutdown","basics"];
   function migrateDays(){
     let ch = false;
+    (S.systems||[]).forEach(sys => sys.steps.forEach(st => { if (st.text === "Ended shift clock") { st.text = "Tapped End day"; ch = true; } }));
     const pros = (S.systems||[]).find(x => x.id === "prospecting");
     if (pros && !pros.steps.some(st => st.id === "st-2hr")) { pros.steps.splice(2, 0, { id:"st-2hr", text:"Checked in at every 2-hour block", slot:"evening" }); ch = true; }
     (S.systems||[]).forEach(sys => { if (!sys.days) { sys.days = WEEKDAY_ONLY.includes(sys.id) ? "weekdays" : "all"; ch = true; } });
