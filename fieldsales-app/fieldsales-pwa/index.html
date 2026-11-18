@@ -605,10 +605,11 @@
 
   function visitsOn(d){ const out = []; S.biz.forEach(b => (b.visits||[]).forEach(v => { if (v.date === d) out.push({b, v}); })); return out; }
   function statsFor(d){
-    const vs = visitsOn(d);
+    const vs = visitsOn(d), pr = (dayData(d).periods) || {};
+    let bc = 0, bd = 0; Object.values(pr).forEach(r => { if (r && r.actC !== undefined && r.actC !== "") bc += +r.actC || 0; if (r && r.actD !== undefined && r.actD !== "") bd += +r.actD || 0; });
     return {
-      contacts: vs.length,
-      demos: vs.filter(x => x.v.outcome !== "contact").length,
+      contacts: Math.max(vs.length, bc),
+      demos: Math.max(vs.filter(x => x.v.outcome !== "contact").length, bd),
       sales: vs.filter(x => x.v.outcome === "sale").length,
       hours: num(dayData(d).hours, 0),
       towns: [...new Set(vs.map(x => (x.b.town||"").trim()).filter(Boolean))]
@@ -1919,17 +1920,30 @@
           <div class="row" style="align-items:center"><b style="flex:1">${lbl}${isNow ? ' <span class="tag" style="background:var(--accent);color:#fff">Now</span>' : ""}${r.result ? ` <span class="tag ${r.result==="hit"?"sale":r.result==="miss"?"due":"demo"}">${r.result==="hit"?"Hit":r.result==="miss"?"Missed":"Partial"}</span>` : ""}</b>
             </div>
           <div class="grid2" style="margin-top:4px">
-            <div><label style="margin-top:4px">Contacts goal</label><input data-blk="contacts" data-p="${pid}" value="${esc(goalC)}" inputmode="numeric" placeholder="0" style="padding:8px">
-              <div class="note" style="margin-top:3px">Logged: <b>${act.c}</b>${goalC !== "" && !isNaN(+goalC) ? ` of ${esc(goalC)}` : ""}</div></div>
-            <div><label style="margin-top:4px">Demos goal</label><input data-blk="demos" data-p="${pid}" value="${esc(goalD)}" inputmode="numeric" placeholder="0" style="padding:8px">
-              <div class="note" style="margin-top:3px">Logged: <b>${act.dm}</b>${goalD !== "" && !isNaN(+goalD) ? ` of ${esc(goalD)}` : ""}</div></div>
+            <div><label style="margin-top:4px">Contacts goal</label><input data-blk="contacts" data-p="${pid}" value="${esc(goalC)}" inputmode="numeric" placeholder="0" style="padding:8px"></div>
+            <div><label style="margin-top:4px">Demos goal</label><input data-blk="demos" data-p="${pid}" value="${esc(goalD)}" inputmode="numeric" placeholder="0" style="padding:8px"></div>
           </div>
+          <div class="grid2">
+            <div><label style="margin-top:6px">Actual contacts</label><input data-blk="actC" data-p="${pid}" value="${esc(r.actC ?? "")}" inputmode="numeric" placeholder="${act.c}" style="padding:8px;${actColor(r.actC, act.c, goalC)}"></div>
+            <div><label style="margin-top:6px">Actual demos</label><input data-blk="actD" data-p="${pid}" value="${esc(r.actD ?? "")}" inputmode="numeric" placeholder="${act.dm}" style="padding:8px;${actColor(r.actD, act.dm, goalD)}"></div>
+          </div>
+          ${act.c || act.dm ? `<div class="note" style="margin-top:3px">Logged in the app this block: ${act.c} contacts, ${act.dm} demos</div>` : ""}
           <label style="margin-top:6px">What this block is for</label>
           <input data-blk="text" data-p="${pid}" value="${esc(text)}" placeholder="e.g. Downtown Boone strip, 2 callbacks" style="padding:8px">
           ${(isNow || past) ? `<div class="pill" style="margin-top:8px">${resBtns}</div>
             <input data-blk="note" data-p="${pid}" value="${esc(r.note||"")}" placeholder="${r.result==="miss"||r.result==="partial" ? "What got in the way, and what changes next block?" : "Note (optional)"}" style="margin-top:6px;padding:7px">` : ""}
         </div>`; }).join("")}
-      <div class="note">Blocks hit today: <b>${PERIODS.filter(([pid]) => (pr[pid]||{}).result === "hit").length}</b> of ${PERIODS.filter(([, , , z]) => nowH >= z).length} finished. Visits logged in the app count toward the block they were logged in.</div>`;
+      <div class="note">Blocks hit today: <b>${PERIODS.filter(([pid]) => (pr[pid]||{}).result === "hit").length}</b> of ${PERIODS.filter(([, , , z]) => nowH >= z).length} finished. Leave Actual blank and it uses the visits you logged in the app during that block; type a number to override it. Your block actuals feed the scoreboard.</div>`;
+  }
+  function actColor(entered, logged, goal){
+    const v = entered !== undefined && entered !== "" ? +entered : logged, g = parseFloat(goal);
+    if (!isFinite(g) || g <= 0 || (entered === undefined || entered === "") && !logged) return "";
+    return v >= g ? "border-color:var(--good);outline:2px solid color-mix(in srgb,var(--good) 35%,transparent)" : "border-color:var(--warn)";
+  }
+  // a block's real numbers: what you typed in, or what the visit log shows if you didn't type anything
+  function blockActual(d, pid){
+    const per = PERIODS.find(x => x[0] === pid), r = ((dayData(d).periods||{})[pid]) || {}, act = periodActual(d, per[2], per[3]);
+    return { c: r.actC !== undefined && r.actC !== "" ? +r.actC : act.c, dm: r.actD !== undefined && r.actD !== "" ? +r.actD : act.dm };
   }
   function renderTodayPlanCard(){ renderBlocksCard(); }
   function _oldPlanCard(){
@@ -1947,6 +1961,7 @@
     const t = e.target; if (!t.dataset.blk) return;
     const d = today(), pr = { ...(dayData(d).periods||{}) }; pr[t.dataset.p] = { ...(pr[t.dataset.p]||{}), [t.dataset.blk]: t.value };
     saveDay(d, { periods: pr });
+    if (t.dataset.blk === "actC" || t.dataset.blk === "actD") renderScore();
   });
   $("todayPlan").addEventListener("click", e => {
     const b = e.target.closest("button[data-blk]"); if (!b) return;
@@ -2079,7 +2094,7 @@ How you coach:
     L.push(`DAY TYPE: ${dayType(d) === "personal" ? "Personal Day (not working)" : "Family Heritage work day"}.`);
     if (dayType(d) !== "personal") {
       const tp = todaysPlan(), pr = day.periods || {};
-      L.push("TODAY'S 2-HOUR BLOCKS: " + PERIODS.map(([pid,lbl,a,z]) => { const pp = (tp && tp.day.periods && tp.day.periods[pid]) || {}, r = pr[pid] || {}, act = periodActual(d,a,z); return `${lbl} goal ${r.contacts ?? pp.contacts ?? "-"}C/${r.demos ?? pp.demos ?? "-"}D "${r.text ?? pp.text ?? ""}" logged ${act.c}C/${act.dm}D${r.result ? ` result ${r.result}${r.note?` (${r.note})`:""}` : ""}`; }).join(" | "));
+      L.push("TODAY'S 2-HOUR BLOCKS: " + PERIODS.map(([pid,lbl,a,z]) => { const pp = (tp && tp.day.periods && tp.day.periods[pid]) || {}, r = pr[pid] || {}, act = periodActual(d,a,z); return `${lbl} goal ${r.contacts ?? pp.contacts ?? "-"}C/${r.demos ?? pp.demos ?? "-"}D "${r.text ?? pp.text ?? ""}" actual ${blockActual(d,pid).c}C/${blockActual(d,pid).dm}D${r.result ? ` result ${r.result}${r.note?` (${r.note})`:""}` : ""}`; }).join(" | "));
     }
     { const dl = devOn(d), wk = devWeek(ws); L.push(`DEVELOPMENT: today ${devMins(dl)} min of ${devTarget()} target${dl.length ? " (" + dl.map(x => `${x.area} ${x.mins}m${x.text?" "+x.text:""}`).join("; ") + ")" : ""}; this week ${devMins(wk)} min.`); }
     if (dayType(d) === "personal") { const pf = (day.pfocus||[]).filter(x => x && x.text); if (pf.length) L.push("PERSONAL DAY FOCUS: " + pf.map(x => `${x.text}${x.done?" ✓":""}`).join("; ")); }
